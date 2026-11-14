@@ -134,8 +134,8 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
       title={def.name}
       icon={<Icon size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />}
       back={region ? { label: region.name, onClick: () => select({ kind: "region", id: region.id }) } : undefined}
-      // With no value, the summary already says when it is due ("Due now"), so the badge would repeat it.
-      status={status === "due" && !valueText ? undefined : <StatusBadge status={status} />}
+      // Due: the summary already says when ("Due now"), or shows the running total; a badge would repeat or contradict it.
+      status={status === "due" ? undefined : <StatusBadge status={status} />}
       kicker={latest && valueText && !soFar ? `${formatClock(latest.t)} MET` : undefined}
       primary={primary}
       summary={summary}

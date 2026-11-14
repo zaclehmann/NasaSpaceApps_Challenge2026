@@ -187,7 +187,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
     ? `${def.name} over ${WINDOW_WORDS[win]}. Latest ${latest ? formatValue(indicator, latest.value, latest.value2) : ""}${indicator === "mood" ? "" : ` ${def.unit}`}, lowest ${formatValue(
         indicator === "bp" ? "hr" : indicator,
         Math.min(...values),
-      )}, highest ${formatValue(indicator === "bp" ? "hr" : indicator, Math.max(...values))}. Demo range ${def.rangeText}.`
+      )}, highest ${formatValue(indicator === "bp" ? "hr" : indicator, Math.max(...values))}. ${indicator === "exercise" ? "Demo target" : "Demo range"} ${def.rangeText}.`
     : `${def.name} over ${WINDOW_WORDS[win]}. No readings.`;
 
   const dotColor = (s: Status) => (s === "ok" ? "var(--foreground)" : STATUS_VAR[s]);
@@ -205,7 +205,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
 
   const chart = (
     <ResponsiveContainer width="100%" height={compact ? 44 : height}>
-      <ComposedChart data={points} margin={compact ? { top: 4, right: 4, bottom: 4, left: 4 } : { top: 18, right: 66, bottom: 0, left: 0 }} accessibilityLayer={false}>
+      <ComposedChart data={points} margin={compact ? { top: 4, right: 4, bottom: 4, left: 4 } : { top: 18, right: indicator === "exercise" ? 100 : 66, bottom: 0, left: 0 }} accessibilityLayer={false}>
         <defs>
           <pattern id="mv-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="6" stroke="var(--border-strong)" strokeWidth="1.5" />
@@ -246,10 +246,10 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
           ifOverflow="hidden"
         />
         {!compact && def.high !== undefined && (
-          <ReferenceLine y={def.high} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: `${fmtY(def.high)} limit`, position: "right", ...TEXT }} />
+          <ReferenceLine y={def.high} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: `${fmtY(def.high)} demo`, position: "right", ...TEXT }} />
         )}
         {!compact && def.low !== undefined && indicator !== "mood" && indicator !== "bp" && (
-          <ReferenceLine y={def.low} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: `${fmtY(def.low)} limit`, position: "right", ...TEXT }} />
+          <ReferenceLine y={def.low} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: indicator === "exercise" ? `${fmtY(def.low)} demo target` : `${fmtY(def.low)} demo`, position: "right", ...TEXT }} />
         )}
         {gaps.map(([a, b]) => (
           <ReferenceArea key={a} x1={Math.max(a, start)} x2={b} fill="url(#mv-hatch)" fillOpacity={1} stroke="none" label={compact ? undefined : { value: "No data", position: "insideTop", ...TEXT }} />
@@ -317,8 +317,8 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
             <Line dataKey="v" stroke="none" dot={false} isAnimationActive={false} activeDot={{ r: 5, fill: "var(--foreground)", stroke: "var(--card)", strokeWidth: 2 }} />
           </>
         )}
-        {!compact && indicator === "bp" && <ReferenceLine y={85} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: "85 limit", position: "right", ...TEXT }} />}
-        {!compact && indicator === "bp" && <ReferenceLine y={60} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: "60 limit", position: "right", ...TEXT }} />}
+        {!compact && indicator === "bp" && <ReferenceLine y={85} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: "85 demo", position: "right", ...TEXT }} />}
+        {!compact && indicator === "bp" && <ReferenceLine y={60} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: "60 demo", position: "right", ...TEXT }} />}
       </ComposedChart>
     </ResponsiveContainer>
   );
