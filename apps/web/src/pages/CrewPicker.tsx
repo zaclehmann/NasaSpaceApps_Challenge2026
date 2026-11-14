@@ -5,7 +5,7 @@
 // Works the same with a mouse, a keyboard and touch: the whole row is one target, Up and Down move
 // between people, Enter opens. Nothing depends on hover.
 import clsx from "clsx";
-import { useRef, type ButtonHTMLAttributes, type KeyboardEvent } from "react";
+import { useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { formatClock, missionDay, nextTask, type RoutineEntry } from "@missionvitals/shared";
 import { useDueAlarm } from "../audio/alertTone";
@@ -77,6 +77,25 @@ function PickerRow({ rowKey, className, children, ...rest }: { rowKey: string | 
   );
 }
 
+const TIP_KEY = "missionvitals.demoTipSeen";
+
+/** The judge's tip shows until someone is first chosen on this device. */
+function tipSeen(): boolean {
+  try {
+    return window.localStorage.getItem(TIP_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function hideTip() {
+  try {
+    window.localStorage.setItem(TIP_KEY, "1");
+  } catch {
+    // Storage blocked: the tip shows again next visit, which is harmless.
+  }
+}
+
 export default function CrewPicker() {
   const { setAstronautId } = useData();
   const mission = useMission();
@@ -84,6 +103,7 @@ export default function CrewPicker() {
   const list = useRef<HTMLUListElement>(null);
   useCrewAlarm(crew);
   const now = crew[0]?.now ?? mission.met;
+  const [showTip] = useState(() => !tipSeen());
 
   // Desktop list behaviour: Up and Down move between people, Home and End jump. Enter and Space open (native).
   const onKey = (e: KeyboardEvent<HTMLButtonElement>) => {
@@ -112,6 +132,8 @@ export default function CrewPicker() {
           {summary(crew)}
         </p>
 
+        {showTip && <p className="mt-1 type-small text-muted-foreground">Demo tip: choose Hana Park, then use Demo in the header to switch between seven scenarios.</p>}
+
         <div className="mt-3 overflow-hidden rounded-lg border border-border">
           <div aria-hidden="true" className={clsx("hidden items-center gap-x-5 bg-muted px-4 py-2.5 type-label text-muted-foreground md:grid", COLS)}>
             <span>Crew member</span>
@@ -132,6 +154,7 @@ export default function CrewPicker() {
                     rowKey={key}
                     onClick={() => {
                       if (key) mark(opened(key));
+                      hideTip();
                       setAstronautId(v.astronaut.id);
                     }}
                     onKeyDown={onKey}
