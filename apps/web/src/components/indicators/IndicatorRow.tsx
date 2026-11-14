@@ -59,7 +59,7 @@ export function IndicatorRow({ state, now, selected, linked }: Props) {
           </span>
         </span>
         {valueText && (
-          <span className="flex shrink-0 items-baseline gap-1">
+          <span className={clsx("flex shrink-0", key === "bp" ? "flex-col items-end" : "items-baseline gap-1")}>
             <span key={valueText} className={clsx("fade-value type-value", status === "ok" ? "text-foreground" : STATUS_TEXT[status])}>
               {valueText}
             </span>

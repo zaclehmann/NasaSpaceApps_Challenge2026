@@ -84,7 +84,7 @@ function Form({ view }: { view: HealthView }) {
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-3 type-caption">
                     <StatusBadge status={i.status} />
-                    <span className="text-subtle-foreground">Last 24 hours</span>
+                    <span className="text-subtle-foreground">{i.def.source === "entered" ? "Last 7 days" : "Last 24 hours"}</span>
                   </div>
                   <IndicatorChart astronautId={view.astronaut.id} indicator={i.key} window={i.def.source === "entered" ? "7d" : "24h"} compact />
                 </li>

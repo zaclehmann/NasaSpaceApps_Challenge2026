@@ -59,7 +59,7 @@ export function AppHeader() {
     clsx("flex h-14 items-center border-b-2 px-1", isActive ? "border-foreground font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground");
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-background px-4 type-small">
-      <Link to="/" className="type-body font-semibold max-md:hidden">
+      <Link to="/" className="flex h-12 items-center type-body font-semibold max-md:hidden">
         MissionVitals
       </Link>
       <Rule className="max-md:hidden" />

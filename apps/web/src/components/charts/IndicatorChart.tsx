@@ -47,7 +47,7 @@ function fullTime(t: number): string {
 }
 
 function xTicks(start: number, end: number, window: ChartWindow): number[] {
-  const step = window === "1h" ? 900 : window === "24h" ? 6 * 3600 : window === "7d" ? 2 * DAY : 7 * DAY;
+  const step = window === "1h" ? 900 : window === "24h" ? 6 * 3600 : window === "7d" ? 2 * DAY : window === "14d" ? 3 * DAY : 7 * DAY;
   const out: number[] = [];
   // Day-based ticks sit at midday so a tick lines up with the readings of that day.
   const offset = step >= DAY ? DAY / 2 : 0;
@@ -71,7 +71,8 @@ function niceDomain(key: IndicatorKey, values: number[]): [number, number] {
   hi += pad;
   if (key === "spo2") hi = Math.min(100, hi);
   if (key === "radiation") lo = Math.max(0, lo);
-  const unit = def.decimals ? 0.5 : hi - lo > 60 ? 20 : hi - lo > 24 ? 10 : hi - lo > 10 ? 5 : 2;
+  const span = hi - lo;
+  const unit = span > 60 ? 20 : span > 24 ? 10 : span > 10 ? 5 : span > 4 ? 2 : 0.5;
   return [Math.floor(lo / unit) * unit, Math.ceil(hi / unit) * unit];
 }
 
@@ -137,7 +138,8 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
     if (!entered && readings.length > 2) {
       const mid = def.low !== undefined && def.high !== undefined ? (def.low + def.high) / 2 : def.low !== undefined ? 100 : 0;
       extreme = readings.reduce((a, b) => (Math.abs(b.value - mid) > Math.abs(a.value - mid) ? b : a));
-      if (latest && Math.abs(extreme.value - latest.value) < (def.decimals ? 0.3 : 4)) extreme = undefined;
+      // Label the extreme only when it is out of range and is not the latest value, so calm charts stay calm.
+      if (classify(indicator, [extreme]).level === "ok" || (latest && Math.abs(extreme.value - latest.value) < (def.decimals ? 0.3 : 4))) extreme = undefined;
     }
     return { readings, points, gaps, start, now, domain: niceDomain(indicator, values), latest, extreme, values };
     // eslint-disable-next-line react-hooks/exhaustive-deps

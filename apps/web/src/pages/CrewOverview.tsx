@@ -143,8 +143,10 @@ function Content() {
             <div>
               <dt className="type-label text-muted-foreground">Current dose rate</dt>
               <dd className="mt-0.5">
-                <span className="type-value">{rad.valueText ?? "No reading"}</span> {rad.valueText && <span className="type-label text-muted-foreground">{rad.def.unit}</span>}
-                <StatusBadge status={rad.status} className="mt-1 flex type-small" />
+                <span className="block">
+                  <span className="type-value">{rad.valueText ?? "No reading"}</span> {rad.valueText && <span className="type-label text-muted-foreground">{rad.def.unit}</span>}
+                </span>
+                <StatusBadge status={rad.status} className="mt-1 type-small" />
               </dd>
             </div>
             <div>

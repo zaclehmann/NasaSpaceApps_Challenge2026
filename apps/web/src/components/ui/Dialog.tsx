@@ -5,6 +5,7 @@ import * as RD from "@radix-ui/react-dialog";
 import clsx from "clsx";
 import { ArrowLeft, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useReturnFocus } from "./useReturnFocus";
 
 interface Props {
   open: boolean;
@@ -19,11 +20,13 @@ interface Props {
 
 export function Dialog({ open, onOpenChange, title, subtitle, variant = "dialog", footer, children }: Props) {
   const page = variant === "page";
+  const returnFocus = useReturnFocus(open);
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         {!page && <RD.Overlay className="anim-scrim fixed inset-0 z-40 bg-scrim" />}
         <RD.Content
+          onCloseAutoFocus={returnFocus}
           className={clsx(
             "fixed z-50 flex flex-col text-foreground outline-none",
             page
