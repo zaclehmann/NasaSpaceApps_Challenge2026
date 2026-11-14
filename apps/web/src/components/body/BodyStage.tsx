@@ -1,11 +1,12 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// The figure with its region labels and a switch between three anatomy views.
+// The figure with its region labels, front and back. Only views that colour status the same way as the
+// organs view are offered (SHOWN_LAYERS); muscle and bone parts stay reachable through the part picker.
 // With room, labels sit beside the figure on leader lines.
 // Without room (narrow column or phone), they become a list under the figure.
 import clsx from "clsx";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { PART_BY_ID, REGION_BY_ID, STATUS_WORD, partsFor, type BodyFace, type RegionId } from "@missionvitals/shared";
+import { PART_BY_ID, REGION_BY_ID, STATUS_WORD, partsFor, type BodyFace, type BodyLayer, type RegionId } from "@missionvitals/shared";
 import type { HealthView } from "../../data/health";
 import { useHighlights } from "../../state/selection";
 import { useUi } from "../../state/ui";
@@ -34,27 +35,21 @@ function useSize() {
   return [ref, size] as const;
 }
 
-const LAYER_KEY = "missionvitals.layer";
+/**
+ * Views offered on the figure. Muscles and Skeleton are hidden: they tint a block of the chest rather than
+ * the organ, and swap the body-system labels (which carry the status words) for part names, so a status
+ * would not look or read the same in every view. Add a layer back here once it colours status like Organs.
+ */
+const SHOWN_LAYERS: Layer[] = ["organs"];
+const PART_GROUPS: { layer: BodyLayer; label: string }[] = [
+  { layer: "organs", label: "Organs" },
+  { layer: "muscles", label: "Muscles" },
+  { layer: "skeleton", label: "Bones" },
+];
 
 function useLayer(): [Layer, (l: Layer) => void] {
-  const [layer, setLayer] = useState<Layer>(() => {
-    try {
-      const v = window.localStorage.getItem(LAYER_KEY);
-      if (v === "organs" || v === "muscles" || v === "skeleton") return v;
-    } catch {
-      // Fall through to the default.
-    }
-    return "organs";
-  });
-  const set = (l: Layer) => {
-    setLayer(l);
-    try {
-      window.localStorage.setItem(LAYER_KEY, l);
-    } catch {
-      // The choice lasts for this visit only.
-    }
-  };
-  return [layer, set];
+  const [layer, setLayer] = useState<Layer>(SHOWN_LAYERS[0]);
+  return [layer, (l) => SHOWN_LAYERS.includes(l) && setLayer(l)];
 }
 
 /**
@@ -246,6 +241,7 @@ export function BodyStage({ view, fill = false }: Props) {
   const selectedPart = selection?.kind === "part" ? selection.id : null;
   const selectPart = (id: string) => select({ kind: "part", id });
   const parts = partsFor(layer, face);
+  const pickable = PART_GROUPS.map((g) => ({ ...g, parts: partsFor(g.layer, face) })).filter((g) => g.parts.length);
   const zones = zonesFor(layer, face);
   const hovered = hoverPart ? zones.find((z) => z.id === hoverPart) : undefined;
 
@@ -288,9 +284,13 @@ export function BodyStage({ view, fill = false }: Props) {
   return (
     <div className={clsx("flex min-w-0 flex-col", fill && "min-h-0 flex-1")}>
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-2">
-      <Tabs label="Body view" items={LAYERS} value={layer} onChange={setLayer} />
-      {/* Side is a separate choice from the view: a hairline and extra space keep the two groups apart. */}
-      <span aria-hidden="true" className="mx-3 h-5 w-px bg-border-strong" />
+      {SHOWN_LAYERS.length > 1 && (
+        <>
+          <Tabs label="Body view" items={LAYERS.filter((l) => SHOWN_LAYERS.includes(l.value))} value={layer} onChange={setLayer} />
+          {/* Side is a separate choice from the view: a hairline and extra space keep the two groups apart. */}
+          <span aria-hidden="true" className="mx-3 h-5 w-px bg-border-strong" />
+        </>
+      )}
       <Tabs label="Side" items={FACES} value={face} onChange={setFace} />
       <div className="relative ml-auto">
         <label htmlFor={pickerId} className="sr-only">
@@ -298,15 +298,19 @@ export function BodyStage({ view, fill = false }: Props) {
         </label>
         <select
           id={pickerId}
-          value={selectedPart && parts.some((p) => p.id === selectedPart) ? selectedPart : ""}
+          value={selectedPart && pickable.some((g) => g.parts.some((p) => p.id === selectedPart)) ? selectedPart : ""}
           onChange={(e) => e.target.value && selectPart(e.target.value)}
           className="h-8 max-w-[190px] appearance-none rounded-md border border-input bg-card pr-8 pl-2.5 type-small text-foreground max-xl:h-12"
         >
           <option value="">Choose a body part</option>
-          {parts.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
+          {pickable.map((g) => (
+            <optgroup key={g.layer} label={g.label}>
+              {g.parts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <ChevronDown size={14} strokeWidth={1.5} aria-hidden="true" className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground" />

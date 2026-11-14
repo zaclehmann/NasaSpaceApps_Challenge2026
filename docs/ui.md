@@ -62,7 +62,7 @@ Paste sections 2 and 3 into every AI coding prompt.
 - No space decoration: stars, planets, orbits, nebulae, rockets, HUD frames, hexagons, scanlines.
 - No terminal look, no green-on-black.
 - No shadow except `--shadow-float` on menus, dialogs, sheets and toasts.
-- No holographic or wireframe body, no realistic or textbook anatomy. The body figure may show schematic anatomy (section 6.1) with soft volume shading; it is the only shaded element in the app.
+- No 3D, holographic or wireframe body, no realistic or textbook anatomy. The body figure may show schematic anatomy (section 6.1), drawn flat: no shading, gradients or lighting.
 
 **Layout**
 - No grid of identical rounded cards; no row of KPI tiles; no hero or welcome banner.
@@ -539,7 +539,7 @@ A sheet, 440 px, opened from any escalation section.
 
 ### 6.1 Drawing
 - Front view, A-pose: arms about 20° out from the body, hands clear of the hips, feet about shoulder width apart.
-- `--figure` fill with soft volume shading from SVG lighting filters (no colour added), and a 1 px `--border-strong` contour. No face or gender cues.
+- Flat `--figure` fill and a 1 px `--border-strong` contour. No shading, face or gender cues.
 - Three anatomy views, switched with a segmented control above the figure and remembered on the device:
   - **Organs**: brain, eyes, inner ear, windpipe and bronchi, a three-lobed right lung and two-lobed left lung, heart with its great vessels, liver, gallbladder, stomach, spleen, large and small intestine, bladder, lymph nodes and thymus. The back shows the cerebellum, spinal cord and kidneys.
   - **Muscles**: the main surface muscles by name, front (pectorals, deltoids, biceps, abdominals, obliques, quadriceps and so on) and back (trapezius, latissimus, triceps, glutes, hamstrings, calves).

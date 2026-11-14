@@ -122,7 +122,7 @@ export function SymptomDialog({ view }: { view: HealthView }) {
       open={open}
       onOpenChange={(o) => !o && closeSymptom()}
       title="Log a symptom"
-      subtitle={part ? `${part.name}, ${LAYER_NAME[part.layer]} view` : "Choose where you feel it"}
+      subtitle={part ? part.name : "Choose where you feel it"}
       footer={
         <>
           <Button variant="secondary" onClick={closeSymptom}>

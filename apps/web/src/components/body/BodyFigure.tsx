@@ -1,6 +1,6 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // The body systems figure (ui.md 6): one smooth outline with nine regions, in three anatomy views.
-// Soft volume shading (SVG lighting filters) gives the figure depth. It is the only shaded element in the app.
+// The figure is flat (ui.md 6.1): solid fills and thin lines, no shading, gradients or lighting.
 // In range, a region is neutral. Watch and above tint it and edge it in the status colour.
 // Each view also has named parts (a knee, a rib, a calf) that can be tapped to see or log a symptom.
 // The figure is for pointing and looking; the labels and the part picker beside it are the real controls.
@@ -61,28 +61,6 @@ function Paths({ shapes, ...props }: { shapes: Shape[] } & Record<string, unknow
   return shapes.map((s, i) => <path key={i} d={s.d} transform={s.mirror ? MIRROR : undefined} {...props} />);
 }
 
-/**
- * Soft volume from the shape's own outline: blur the outline, light it from the upper left,
- * darken the edges that turn away and add a faint highlight. No colour is added.
- */
-function VolumeFilter({ id, blur, depth, shine }: { id: string; blur: number; depth: number; shine: number }) {
-  return (
-    <filter id={id} x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
-      <feGaussianBlur in="SourceAlpha" stdDeviation={blur} result="b" />
-      <feDiffuseLighting in="b" surfaceScale={depth} diffuseConstant={1.08} lightingColor="white" result="d">
-        <feDistantLight azimuth={225} elevation={58} />
-      </feDiffuseLighting>
-      <feComposite in="d" in2="SourceAlpha" operator="in" result="dIn" />
-      <feBlend in="SourceGraphic" in2="dIn" mode="multiply" result="m" />
-      <feSpecularLighting in="b" surfaceScale={depth} specularConstant={0.6} specularExponent={18} lightingColor="white" result="s">
-        <feDistantLight azimuth={225} elevation={48} />
-      </feSpecularLighting>
-      <feComposite in="s" in2="SourceAlpha" operator="in" result="sIn" />
-      <feComposite in="m" in2="sIn" operator="arithmetic" k1={0} k2={1} k3={shine} k4={0} />
-    </filter>
-  );
-}
-
 /** Leader line from an anchor on the figure out to a label slot at the edge of the figure's box. */
 function leaderPath(id: RegionId, anchor: [number, number]): string {
   const { side, y } = CALLOUTS[id];
@@ -118,8 +96,6 @@ export function BodyFigure({ view, leaders, partCallouts, layer, face, selectedP
   const zones = zonesFor(layer, face);
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const bodyClip = `mv-body-${uid}`;
-  const volBody = `mv-vol-body-${uid}`;
-  const volPart = `mv-vol-part-${uid}`;
   const cutClip = (id: CutRegion) => `mv-cut-${id}-${uid}`;
   const zoneClip = (id: string) => `mv-zone-${id}-${uid}`;
   const cutIds = CUT_ORDER.filter((id) => def.regions[id].kind === "cut");
@@ -180,8 +156,6 @@ export function BodyFigure({ view, leaders, partCallouts, layer, face, selectedP
             <Paths shapes={z.shapes} />
           </clipPath>
         ))}
-        <VolumeFilter id={volBody} blur={7} depth={5} shine={0.22} />
-        <VolumeFilter id={volPart} blur={1.5} depth={2.2} shine={0.26} />
       </defs>
 
       {/* Whole body: a halo that follows the outline, shown only when it has something to say. */}
@@ -193,8 +167,8 @@ export function BodyFigure({ view, leaders, partCallouts, layer, face, selectedP
       )}
       <path d={BODY_PATH} fill="transparent" stroke="transparent" strokeWidth={22} pointerEvents="stroke" className="cursor-pointer" {...pointer("whole")} />
 
-      {/* The body, with tints for regions drawn as cuts of the outline, shaded as one volume. */}
-      <g filter={`url(#${volBody})`}>
+      {/* The body, with tints for regions drawn as cuts of the outline. */}
+      <g>
         <path d={BODY_PATH} fill="var(--figure)" />
         <g clipPath={`url(#${bodyClip})`}>
           {cutIds.map((id) => {
@@ -204,16 +178,16 @@ export function BodyFigure({ view, leaders, partCallouts, layer, face, selectedP
         </g>
       </g>
 
-      {/* Anatomy for this view, kept inside the outline. Each part is shaded on its own. */}
+      {/* Anatomy for this view, kept inside the outline. */}
       <g clipPath={`url(#${bodyClip})`}>
         {def.fills.length > 0 && (
-          <g filter={`url(#${volPart})`}>
+          <g>
             {def.fills.map((f, i) => (
               <Paths key={i} shapes={f.shapes} fill={TONE_FILL[f.tone]} stroke={TONE_LINE[f.tone]} strokeWidth={0.6} strokeLinejoin="round" />
             ))}
           </g>
         )}
-        <g filter={`url(#${volPart})`}>
+        <g>
           {shapeIds.map((id) => {
             const art = shapeArt(id)!;
             const s = shown(id);
@@ -221,7 +195,7 @@ export function BodyFigure({ view, leaders, partCallouts, layer, face, selectedP
           })}
         </g>
         {def.over.length > 0 && (
-          <g filter={`url(#${volPart})`}>
+          <g>
             {def.over.map((f, i) => (
               <Paths key={i} shapes={f.shapes} fill={TONE_FILL[f.tone]} stroke={TONE_LINE[f.tone]} strokeWidth={0.6} strokeLinejoin="round" />
             ))}

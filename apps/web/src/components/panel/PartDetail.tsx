@@ -16,7 +16,7 @@ import { ReadingRows } from "./RegionDetail";
 import { RelatedItems } from "./RelatedItems";
 import { Steps } from "./WhatToDo";
 
-const VIEW_WORD = { organs: "Organs view", muscles: "Muscles view", skeleton: "Skeleton view" };
+const VIEW_WORD = { organs: "Organ", muscles: "Muscle", skeleton: "Bone" };
 
 const WHAT_TO_DO: Record<"watch" | "caution" | "warning", string[]> = {
   watch: ["Rest the area and avoid what brings it on.", "Check it again tomorrow and update the log."],
