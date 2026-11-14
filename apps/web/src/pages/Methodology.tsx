@@ -158,7 +158,10 @@ function Content() {
         <li>Thresholds are demo values, including the exercise target of 120 minutes a day.</li>
         <li>Guidance covers re-measuring, habits, mission procedure and escalation only. It does not diagnose.</li>
         <li>Eyes and inner ear are not measured. Temperature is only a fever check, not a measure of the immune system. Exercise minutes stand in for bone and muscle health, which is not measured directly.</li>
-        <li>There is no server yet. Data lives in memory and resets on reload.</li>
+        <li>
+          On a spacecraft this would run on an onboard server. The prototype runs in the browser with a simulated data source behind one interface, so a server could replace it without changing
+          the screens. Data lives in memory and resets on reload.
+        </li>
       </ul>
       <Todo>anything you learn from testing with other people.</Todo>
 

@@ -43,7 +43,7 @@ apps/web              React + Vite + TypeScript + Tailwind CSS v4
   src/data            DataSource interface, seeded mock, React provider and hooks
   src/components      layout, status, indicators, body, panel, measure, charts, report, demo, ui
   src/pages           CrewPicker, MyHealth, CrewOverview, Learn, Methodology, Kit
-apps/server           Node API, built next
+apps/server           Planned onboard Node API, not built (see its README)
 packages/shared       Types, indicator catalogue, demo thresholds, status function, guidance, routine
 screenshots           My Health at three sizes, light and dark, four scenarios
 ```
