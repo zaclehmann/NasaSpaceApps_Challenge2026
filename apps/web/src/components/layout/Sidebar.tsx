@@ -7,12 +7,13 @@
 // Built on Radix Dialog: focus is trapped, Escape closes, focus returns to the menu button.
 import * as RD from "@radix-ui/react-dialog";
 import clsx from "clsx";
-import { BookOpen, ClipboardList, FlaskConical, HeartPulse, ListChecks, Menu, SlidersHorizontal, Stethoscope, Users, X, type LucideIcon } from "lucide-react";
+import { BookOpen, ClipboardList, FlaskConical, HeartPulse, ListChecks, Menu, MousePointerClick, SlidersHorizontal, Stethoscope, Users, X, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { formatDelay, formatMet, missionDay, type Status } from "@missionvitals/shared";
 import { useAstronaut, useData, useMission } from "../../data/DataProvider";
 import { useUi } from "../../state/ui";
+import { useClickFeedback } from "../../audio/clickFeedback";
 import { useThemeChoice, type ThemeChoice } from "../../theme/useTheme";
 import { BadgeIcon, StatusBadge } from "../status/StatusBadge";
 import { useCurrentHealth } from "./AppShell";
@@ -77,6 +78,18 @@ const THEMES: { id: ThemeChoice; label: string }[] = [
   { id: "light", label: "Light" },
   { id: "dark", label: "Dark" },
 ];
+
+/** On or off for the key tick and touch vibration on every press. The state is in the word, not only the icon. */
+function ClickFeedbackRow() {
+  const [on, setOn] = useClickFeedback();
+  return (
+    <button type="button" role="switch" aria-checked={on} className={clsx(row, idle)} onClick={() => setOn(!on)} title="A quiet key tick on each press, and a short vibration on touch screens that support it">
+      <MousePointerClick size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0" />
+      Click feedback
+      <Meta>{on ? "On" : "Off"}</Meta>
+    </button>
+  );
+}
 
 function ThemeSwitch() {
   const [theme, setTheme] = useThemeChoice();
@@ -261,6 +274,7 @@ export function Sidebar() {
               <div className="px-2 pb-2">
                 <ThemeSwitch />
               </div>
+              <ClickFeedbackRow />
               <button
                 type="button"
                 className={clsx(row, idle)}
