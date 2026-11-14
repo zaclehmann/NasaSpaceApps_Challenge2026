@@ -62,7 +62,7 @@ Paste sections 2 and 3 into every AI coding prompt.
 - No space decoration: stars, planets, orbits, nebulae, rockets, HUD frames, hexagons, scanlines.
 - No terminal look, no green-on-black.
 - No shadow except `--shadow-float` on menus, dialogs, sheets and toasts.
-- No 3D, anatomical, holographic or wireframe body; no organs drawn.
+- No 3D, holographic or wireframe body, no realistic or textbook anatomy. The body figure may show schematic anatomy (section 6.1), drawn flat: no shading, gradients or lighting.
 
 **Layout**
 - No grid of identical rounded cards; no row of KPI tiles; no hero or welcome banner.
@@ -274,8 +274,9 @@ Background tints (rows and body regions, Watch and above only):
 2. Green stays small: a badge, never a fill, row or region. A screen that's all green hides the one problem.
 3. Status colour never marks selection, focus or links. Those are black/white (`--foreground`) and `--link`.
 4. Worst state wins for a body region and for the overall summary.
-5. A legend with all five badges and words sits under the body figure at all times.
+5. The status key (all five badges, words and meanings) is always one click away: the **Status key** item in the bottom status bar on tablet and desktop, and printed under the body figure on phone.
 6. The status word is always printed next to the badge. Never the badge alone.
+7. Exception: the routine Start (green) and Postpone (red) buttons use status colours on purpose, so a due check stands out; they never appear for indicator status.
 
 ### 3.4 Validator results (dataviz skill, `validate_palette.js`, all-pairs)
 
@@ -494,19 +495,21 @@ Opened from the routine bar, a **Measure** button or a body region. Dialog 560 p
 
 ### 5.6 Alerts
 
-- **Warning**: full-width bar under the header, Warning tint, 1 px Warning bottom border, octagon badge, one sentence, **View** button. Stays until acknowledged. No sound in the demo, no flashing, no blocking pop-up.
+- **Warning**: full-width bar under the header, Warning tint, 1 px Warning bottom border, octagon badge, one sentence, **View** button. Stays until acknowledged. One short two-tone sound when the Warning first appears, rung once and never repeated (not rung late if audio was still locked). It takes over from a routine ring that is sounding, and **Acknowledge** cuts it off if it is still sounding. It is never muted: the header **Sound on / Sound off** toggle covers click feedback only. No flashing, no blocking pop-up.
 - **Caution**: in the summary sentence, the indicator row and the body region. No bar.
 - **Watch**: under "Also watching". Never interrupts.
 - Every alert's detail shows why it fired (rule and numbers), what to do, the escalation level, and an action log with **I re-measured**, **Checked the sensor**, **Contacted the CMO** and **Add note**. **Acknowledge** is the primary button.
 
 ### 5.7 Routine and light gamification
 
+- **Due now**: the actions are a solid red **Postpone** (no pulse) and a solid green **Start** that pulses slowly 5 times, then stays green and still (WCAG 2.2.2), the same in the status strip and the routine table. Pressing Start or Postpone stops the pulse at once; a newly due check pulses again. No pulse with reduced motion. On phone the strip keeps only **Start**; Routine and Symptoms move to the More tab. **Postpone** opens a dialog with a dropdown (5, 10, 15 or 30 minutes, 1 or 2 hours, default 30) and shows the new due time. A short two-tone alarm rings on every page while the task stays due: every 30 s for the first 2 min, every 15 s to 5 min, every 10 s to 10 min, then every 2.5 s, counted from the due time. Acting on it silences it, as in crew alert design: it stops for good once **Start** or **Postpone** is pressed for that task (even if the measurement or the dialog is then cancelled), and when the task is done or turns overdue. Nothing sounds before the first click or key press; a ring asked for before then plays a moment after the first press, unless that press was Start or Postpone. On the crew picker, a row whose check is due now keeps a red left bar and tint while due, and blinks 5 times or until it is opened (reduced motion: no blink). The alarm is never muted. The header **Sound on / Sound off** toggle is for click feedback only (the click sound and vibration). The full routine opens as a page from **Routine** in the strip, as a table with Status and Actions columns.
+
 This is a duty roster, not a game.
 
 - Routine bar as in 5.2. Clicking it opens a popover listing today's tasks: time, task, status (Done 07:02, Due now, Due 16:00, Overdue 40 min) and **Start**.
 - Demo routine: 07:00 blood pressure, 07:10 blood glucose (fasting), 07:15 sleep review, mood check-in (due now), 16:00 exercise log, 21:00 evening blood pressure.
 - Allowed: day streak, weekly completion ("This week: 38 of 42 tasks"), and a crew-wide routine completion line on the Crew screen. Team effort, no leaderboard.
-- Not allowed: points, XP, levels, badges, trophies, confetti, sounds.
+- Not allowed: points, XP, levels, badges, trophies, confetti, reward sounds.
 
 ### 5.8 Send report to the flight surgeon
 
@@ -537,7 +540,14 @@ A sheet, 440 px, opened from any escalation section.
 
 ### 6.1 Drawing
 - Front view, A-pose: arms about 20° out from the body, hands clear of the hips, feet about shoulder width apart.
-- Flat `--figure` fill. No outline, shading, face, organs or gender cues.
+- Flat `--figure` fill and a 1 px `--border-strong` contour. No shading, face or gender cues.
+- Three anatomy views, switched with a segmented control above the figure and remembered on the device:
+  - **Organs**: brain, eyes, inner ear, windpipe and bronchi, a three-lobed right lung and two-lobed left lung, heart with its great vessels, liver, gallbladder, stomach, spleen, large and small intestine, bladder, lymph nodes and thymus. The back shows the cerebellum, spinal cord and kidneys.
+  - **Muscles**: the main surface muscles by name, front (pectorals, deltoids, biceps, abdominals, obliques, quadriceps and so on) and back (trapezius, latissimus, triceps, glutes, hamstrings, calves).
+  - **Skeleton**: skull and jaw, 24 vertebrae and sacrum, 12 pairs of ribs with their cartilage, sternum, clavicles, shoulder blades, pelvis and every long bone, with the organs visible behind the ribs.
+- Each view has a front and a back, and organs sit at their true levels against the ribs and spine (heart behind the sternum between ribs 2 and 6, liver under the right dome of the diaphragm, kidneys from T12 to L3).
+- The drawings are schematic teaching diagrams. No status, alert or advice is computed from them.
+- Anatomy uses neutral tone tokens (`--organ`, `--bone`, `--muscle` and their `-line` pairs). Status colour appears only on a region that is Watch, Caution, Warning or No data. A line under the view switch gives the readings that matter for the view (exercise for Muscles, exercise and dose for Skeleton).
 - SVG, viewBox `0 0 320 600`. Scales with its column: max 440 px wide, min 240 px.
 
 ### 6.2 Regions
@@ -553,7 +563,7 @@ Nine regions, each its own focusable SVG group.
 | Lungs and oxygen | Upper chest | SpO₂ | Hypoxia |
 | Immune system | Neck and underarm marks | Temperature (fever check) | Altered Immune System Responses |
 | Gut and metabolism | Abdomen | Blood glucose | Inadequate Food and Nutrition |
-| Bones and muscles | Arms and legs | Exercise log | Spaceflight-Induced Bone Changes; Reduced Cardiorespiratory and Musculoskeletal Fitness |
+| Bones and muscles | Arms and legs | Exercise (shirt, confirmed daily) | Spaceflight-Induced Bone Changes; Reduced Cardiorespiratory and Musculoskeletal Fitness |
 | Whole body | Thin ring around the whole figure, crew-wide | Habitat radiation | Radiation-Induced Cancers |
 
 ### 6.3 States
@@ -623,7 +633,7 @@ From the dataviz skill. Each chart shows one indicator.
 
 - Voice: a calm crewmate. Not a doctor, not a robot.
 - Fact first, then action: "Heart rate above 110 bpm for 9 minutes. Rest and re-measure."
-- Every number has a unit; every threshold says "demo".
+- Every number has a unit. Thresholds are demo values, stated once as the source of truth (the status bar notice and the Methodology page), not repeated on every line (decided by Zac, 14 Nov).
 - Time in MET ("MET 141d 14:33"); relative time only for freshness ("Updated 12 seconds ago").
 - Missing data: "No reading for 6 minutes", never a stale number.
 - Buttons say exactly what happens, and the confirmation repeats the verb: **Save reading** → "Reading saved". **Queue report** → "Report queued".
@@ -643,9 +653,10 @@ Motion answers an action or marks a change. One orchestrated moment, nothing dec
 - New reading: the value cross-fades in 150 ms. No counting up, no flash.
 - Status change on a region: tint fades in over 300 ms, once.
 - Routine segment fills over 200 ms when a task completes.
+- Due-now exception: the green **Start** pulses and a due crew picker row blinks, 5 cycles each, then stop (5.7). Acting on the item stops it sooner. Under 3 flashes a second.
 - Data-driven exception: the heart-rate icon may pulse once per measured beat (scale 1 to 1.1). It shows the real rate, so it's information. It stops when data is missing.
 
-**Banned:** fade-and-slide-up on every section, hover lifts on panels, breathing or glowing elements, parallax, bounce, confetti, pulsing alerts.
+**Banned:** fade-and-slide-up on every section, hover lifts on panels, breathing or glowing elements, parallax, bounce, confetti, pulsing alerts (beyond the 5-cycle due-now cue above).
 
 Everything above turns off under `prefers-reduced-motion: reduce`.
 

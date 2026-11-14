@@ -2,21 +2,26 @@
 // The status function. Pure: same inputs, same answer. All limits are DEMO values (see indicators.ts).
 import { INDICATORS, formatValue } from "./indicators";
 import { DAY, formatDuration, startOfDay } from "./time";
-import type { IndicatorKey, Reading, Status } from "./types";
+import type { GlucoseTiming, IndicatorKey, Reading, Status } from "./types";
 
 export type Side = "above" | "below";
 export type Level = "ok" | "caution" | "warning";
 
+/**
+ * Today's routine for this indicator. "missed" means the day ended without the measurement;
+ * a data source sets it when it reports on a past day.
+ */
+export type RoutineContext = "none" | "upcoming" | "due" | "overdue" | "missed";
+
 export interface StatusContext {
   /** Current MET in seconds. Defaults to the time of the latest reading. */
   now?: number;
-  /** State of the routine task for this indicator, if it has one. */
-  routine?: "none" | "due" | "overdue";
+  routine?: RoutineContext;
 }
 
 export interface Evaluation {
   status: Status;
-  reason: "in-range" | "trend" | "overdue" | "out-of-range" | "silent" | "not-taken";
+  reason: "in-range" | "trend" | "due" | "overdue" | "out-of-range" | "silent" | "not-taken";
   side?: Side;
   /** The demo limit that was crossed or is being approached. */
   limit?: number;
@@ -24,7 +29,7 @@ export interface Evaluation {
   inclusive?: boolean;
   /** For blood pressure: which number drove the status. */
   component?: "systolic" | "diastolic";
-  /** Mood only: Very low on two days running. */
+  /** Mood and exercise: low on two days running. */
   twoDays?: boolean;
   /** MET when the current out-of-range run began. */
   since?: number;
@@ -46,6 +51,28 @@ const round = (v: number, decimals: number) => {
 };
 
 const OK: Classified = { level: "ok" };
+
+/** Top of the in-range band for blood glucose. It depends on when the reading was taken. */
+export function glucoseHigh(timing?: GlucoseTiming): number {
+  return timing === "after-meal" ? 140 : 110;
+}
+
+/** The demo range in words for one reading. Glucose after a meal has its own range. */
+export function rangeTextFor(key: IndicatorKey, r?: Reading): string {
+  if (key === "glucose" && r?.timing === "after-meal") return "70 to 140 mg/dL after a meal";
+  return INDICATORS[key].rangeText;
+}
+
+/** True if the reading on the mission day before reading i passes the test. */
+function dayBefore(readings: readonly Reading[], i: number, test: (v: number) => boolean): boolean {
+  const dayStart = startOfDay(readings[i].t);
+  for (let j = i - 1; j >= 0; j--) {
+    const p = readings[j];
+    if (p.t >= dayStart) continue;
+    return p.t >= dayStart - DAY && test(p.value);
+  }
+  return false;
+}
 
 /**
  * Classify the reading at index i against the demo thresholds.
@@ -80,32 +107,29 @@ export function classify(key: IndicatorKey, readings: readonly Reading[], i: num
       if (v > 135) return { level: "caution", side: "above", limit: 135, component: "systolic" };
       if (v < 90) return { level: "caution", side: "below", limit: 90, component: "systolic" };
       if (d > 85) return { level: "caution", side: "above", limit: 85, component: "diastolic" };
+      if (d < 60) return { level: "caution", side: "below", limit: 60, component: "diastolic" };
       return OK;
     }
-    case "glucose":
+    case "glucose": {
+      const high = glucoseHigh(r.timing);
       if (v < 55) return { level: "warning", side: "below", limit: 55 };
       if (v > 180) return { level: "warning", side: "above", limit: 180 };
       if (v < 70) return { level: "caution", side: "below", limit: 70 };
-      if (v > 110) return { level: "caution", side: "above", limit: 110 };
+      if (v > high) return { level: "caution", side: "above", limit: high };
       return OK;
+    }
     case "sleep":
       if (v < 5) return { level: "warning", side: "below", limit: 5 };
       if (v < 6) return { level: "caution", side: "below", limit: 6 };
       return OK;
-    case "mood": {
+    case "exercise":
+      if (v >= 120) return OK;
+      if (v < 60 && dayBefore(readings, i, (x) => Math.round(x) < 60)) return { level: "warning", side: "below", limit: 60, twoDays: true };
+      return { level: "caution", side: "below", limit: 120 };
+    case "mood":
       if (v >= 3) return OK;
-      if (v <= 1) {
-        // Warning needs a 1 on the mission day before as well.
-        const dayStart = startOfDay(r.t);
-        for (let j = i - 1; j >= 0; j--) {
-          const p = readings[j];
-          if (p.t >= dayStart) continue;
-          if (p.t >= dayStart - DAY && Math.round(p.value) <= 1) return { level: "warning", side: "below", limit: 3, twoDays: true };
-          break;
-        }
-      }
+      if (v <= 1 && dayBefore(readings, i, (x) => Math.round(x) <= 1)) return { level: "warning", side: "below", limit: 3, twoDays: true };
       return { level: "caution", side: "below", limit: 3 };
-    }
     case "radiation":
       if (v > 50) return { level: "warning", side: "above", limit: 50 };
       if (v >= 20) return { level: "caution", side: "above", limit: 20, inclusive: true };
@@ -114,21 +138,29 @@ export function classify(key: IndicatorKey, readings: readonly Reading[], i: num
 }
 
 /**
- * Watch rule settings. A value is "near" a limit when it is within 10% of that limit.
- * For SpO2 and temperature, 10% of the limit would cover the whole healthy range,
- * so the margin is 10% of the in-range span instead (6 points and 1.5 degrees).
- * minChange is the smallest move toward the limit that counts as a trend, so noise does not.
+ * Watch rule settings.
+ * margin: how far inside a demo limit counts as "near" it. Fixed per indicator; for blood pressure,
+ * systolic and diastolic have their own margins.
+ * minChange: the smallest move toward the limit that counts as a trend, so noise does not.
+ * arrowMin: the smallest change that turns the list's trend arrow up or down.
  */
-export const WATCH: Record<IndicatorKey, { margin?: number; minChange: number; arrowMin: number }> = {
-  hr: { minChange: 5, arrowMin: 3 },
-  spo2: { margin: 0.6, minChange: 1, arrowMin: 1 },
-  temp: { margin: 0.15, minChange: 0.2, arrowMin: 0.1 },
-  bp: { minChange: 4, arrowMin: 4 },
-  glucose: { minChange: 5, arrowMin: 5 },
-  sleep: { minChange: 0.3, arrowMin: 0.3 },
-  mood: { minChange: 0.3, arrowMin: 1 },
-  radiation: { minChange: 1.5, arrowMin: 0.5 },
+export const WATCH: Record<IndicatorKey, { margin: number; minChange: number; arrowMin: number }> = {
+  hr: { margin: 6, minChange: 5, arrowMin: 3 },
+  spo2: { margin: 1, minChange: 1, arrowMin: 1 },
+  temp: { margin: 0.3, minChange: 0.2, arrowMin: 0.2 },
+  bp: { margin: 10, minChange: 4, arrowMin: 4 },
+  glucose: { margin: 10, minChange: 5, arrowMin: 5 },
+  sleep: { margin: 0.5, minChange: 0.3, arrowMin: 0.3 },
+  exercise: { margin: 15, minChange: 10, arrowMin: 10 },
+  mood: { margin: 0, minChange: 0.3, arrowMin: 1 },
+  radiation: { margin: 2, minChange: 1.5, arrowMin: 0.5 },
 };
+
+/** Diastolic blood pressure has a tighter margin than systolic. */
+export const BP_DIASTOLIC_MARGIN = 5;
+
+/** Entered readings trend over this many days. */
+export const TREND_DAYS = 3;
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 
@@ -138,15 +170,20 @@ const secondary: Pick = (r) => r.value2 ?? NaN;
 
 /**
  * How far the value has moved over the trend window.
- * Live sources: mean of the last 10 minutes minus the mean from 50 to 70 minutes ago ("over the last hour").
- * Entered readings: the latest reading minus the mean of up to five readings before it.
+ * Live sources: mean of the last 10 minutes minus the mean from 50 to 70 minutes ago (the last hour).
+ * Entered readings: the latest reading minus the mean of the readings in the 3 days before it.
  */
 export function trendChange(key: IndicatorKey, readings: readonly Reading[], now: number, pick: Pick = primary): number | undefined {
   if (!readings.length) return undefined;
   if (INDICATORS[key].source === "entered") {
-    const prev = readings.slice(Math.max(0, readings.length - 6), readings.length - 1).map(pick).filter((x) => !Number.isNaN(x));
+    const last = readings[readings.length - 1];
+    const prev = readings
+      .slice(0, -1)
+      .filter((r) => r.t >= last.t - TREND_DAYS * DAY)
+      .map(pick)
+      .filter((x) => !Number.isNaN(x));
     if (!prev.length) return undefined;
-    return pick(readings[readings.length - 1]) - mean(prev);
+    return pick(last) - mean(prev);
   }
   const recent: number[] = [];
   const earlier: number[] = [];
@@ -160,23 +197,30 @@ export function trendChange(key: IndicatorKey, readings: readonly Reading[], now
   return mean(recent) - mean(earlier);
 }
 
-function approaching(key: IndicatorKey, readings: readonly Reading[], now: number): Pick_ | undefined {
+interface Approach {
+  side: Side;
+  limit: number;
+  component?: "systolic" | "diastolic";
+}
+
+function approaching(key: IndicatorKey, readings: readonly Reading[], now: number): Approach | undefined {
   const def = INDICATORS[key];
   const w = WATCH[key];
   const latest = readings[readings.length - 1];
-  const candidates: { limit: number; side: Side; pick: Pick; component?: "systolic" | "diastolic" }[] = [];
+  const candidates: (Approach & { pick: Pick; margin: number })[] = [];
   if (key === "bp") {
-    candidates.push({ limit: 135, side: "above", pick: primary, component: "systolic" });
-    candidates.push({ limit: 85, side: "above", pick: secondary, component: "diastolic" });
-    candidates.push({ limit: 90, side: "below", pick: primary, component: "systolic" });
+    candidates.push({ limit: 135, side: "above", pick: primary, margin: w.margin, component: "systolic" });
+    candidates.push({ limit: 90, side: "below", pick: primary, margin: w.margin, component: "systolic" });
+    candidates.push({ limit: 85, side: "above", pick: secondary, margin: BP_DIASTOLIC_MARGIN, component: "diastolic" });
+    candidates.push({ limit: 60, side: "below", pick: secondary, margin: BP_DIASTOLIC_MARGIN, component: "diastolic" });
   } else {
-    if (def.high !== undefined) candidates.push({ limit: def.high, side: "above", pick: primary });
-    if (def.low !== undefined) candidates.push({ limit: def.low, side: "below", pick: primary });
+    const high = key === "glucose" ? glucoseHigh(latest.timing) : def.high;
+    if (high !== undefined) candidates.push({ limit: high, side: "above", pick: primary, margin: w.margin });
+    if (def.low !== undefined) candidates.push({ limit: def.low, side: "below", pick: primary, margin: w.margin });
   }
   for (const c of candidates) {
     const v = round(c.pick(latest), def.decimals);
-    const margin = w.margin ?? 0.1 * c.limit;
-    const near = c.side === "above" ? v >= c.limit - margin : v <= c.limit + margin;
+    const near = c.side === "above" ? v >= c.limit - c.margin - 1e-9 : v <= c.limit + c.margin + 1e-9;
     if (!near) continue;
     const change = trendChange(key, readings, now, c.pick);
     if (change === undefined) continue;
@@ -185,7 +229,6 @@ function approaching(key: IndicatorKey, readings: readonly Reading[], now: numbe
   }
   return undefined;
 }
-type Pick_ = { side: Side; limit: number; component?: "systolic" | "diastolic" };
 
 /** MET when the current unbroken out-of-range run on this side began. */
 function runStart(key: IndicatorKey, readings: readonly Reading[], side: Side | undefined): number {
@@ -205,9 +248,12 @@ function runStart(key: IndicatorKey, readings: readonly Reading[], side: Side | 
 /**
  * Full evaluation of an indicator. `readings` must be in time order, oldest first.
  *
- * - No data: a live source silent for 3x its expected interval, or an entered measurement not taken today.
+ * - Live sources: No data when silent for 3x the expected interval.
+ * - Entered measurements not taken today: Due until 1 hour past the routine time, then Watch
+ *   (overdue), then No data if the day ends without it.
  * - Warning and Caution: from the demo thresholds table.
- * - Watch: in range, but within 10% of a limit and moving toward it, or a routine measurement overdue.
+ * - Watch: in range, but within a fixed margin of a limit and moving toward it
+ *   (last hour for live readings, last 3 days for entered ones), or a routine measurement overdue.
  */
 export function evaluate(key: IndicatorKey, readings: readonly Reading[], ctx: StatusContext = {}): Evaluation {
   const def = INDICATORS[key];
@@ -218,7 +264,9 @@ export function evaluate(key: IndicatorKey, readings: readonly Reading[], ctx: S
   if (def.source === "entered") {
     const takenToday = latest !== undefined && latest.t >= startOfDay(now);
     if (!takenToday) {
-      return routine === "overdue" ? { status: "watch", reason: "overdue", latest } : { status: "nodata", reason: "not-taken", latest };
+      if (routine === "overdue") return { status: "watch", reason: "overdue", latest };
+      if (routine === "due" || routine === "upcoming") return { status: "due", reason: "due", latest };
+      return { status: "nodata", reason: "not-taken", latest };
     }
   } else if (!latest || now - latest.t > 3 * def.expectedIntervalSec) {
     return { status: "nodata", reason: "silent", latest };
@@ -251,7 +299,7 @@ export function getStatus(key: IndicatorKey, readings: readonly Reading[], ctx: 
 
 export type TrendArrow = "up" | "down" | "flat";
 
-/** Direction for the small arrow in the indicator list: the last minute against 5 to 10 minutes ago, or the previous entry. */
+/** Direction for the list: the last minute against 5 to 10 minutes ago, or the previous entry. */
 export function trendArrow(key: IndicatorKey, readings: readonly Reading[], now: number): TrendArrow {
   if (readings.length < 2) return "flat";
   const min = WATCH[key].arrowMin;
@@ -284,35 +332,41 @@ export function statusLine(key: IndicatorKey, ev: Evaluation, now: number): stri
   switch (ev.reason) {
     case "silent":
       return r ? `No reading for ${formatDuration(now - r.t)}.` : "No reading yet.";
+    case "due":
+      return "Not taken yet today.";
     case "not-taken":
-      return "Not measured yet today.";
+      return "No reading today.";
     case "overdue":
-      return r && r.t >= startOfDay(now) ? "In range at the last reading. A routine check is overdue." : "Today's check is overdue.";
+      return r && r.t >= startOfDay(now) ? "In range at the last reading. A routine check is overdue." : "Today's check is more than an hour overdue.";
     case "in-range":
-      return `Inside your demo range of ${def.rangeText}.`;
+      if (key === "exercise") return "At or above the target of 120 minutes today.";
+      return `Inside your range of ${rangeTextFor(key, r)}.`;
     case "trend": {
       if (key === "mood") return "In range, but lower than your recent check-ins.";
       const verb = ev.side === "above" ? "rising" : "falling";
-      const span = def.source === "entered" ? "across your recent readings" : "over the last hour";
+      const span = def.source === "entered" ? `over the last ${TREND_DAYS} days` : "over the last hour";
       const what = ev.component ? `${ev.component === "systolic" ? "Systolic" : "Diastolic"} is ${verb}` : `In range, but ${verb}`;
-      return `${what} toward the demo limit of ${fmtLimit(key, ev.limit ?? 0)} ${span}.`;
+      return `${what} toward the limit of ${fmtLimit(key, ev.limit ?? 0)} ${span}.`;
     }
     case "out-of-range": {
       const dur = def.source !== "entered" && ev.since !== undefined && r ? ` for ${formatDuration(Math.max(r.t - ev.since, def.expectedIntervalSec))}` : "";
       const side = ev.side === "above" ? (ev.inclusive ? "At or above" : "Above") : "Below";
       if (key === "mood") {
-        return ev.twoDays ? "Very low on two days running. Below your demo range of Okay or better." : `${formatValue("mood", r?.value ?? 1)} today. Below your demo range of Okay or better.`;
+        return ev.twoDays ? "Very low on two days running. Below your range of Okay or better." : `${formatValue("mood", r?.value ?? 1)} today. Below your range of Okay or better.`;
+      }
+      if (key === "exercise") {
+        return ev.twoDays ? "Below 60 minutes on two days running. The target is 120 minutes a day." : `${Math.round(r?.value ?? 0)} minutes today. Below the target of 120 minutes.`;
       }
       if (key === "bp" && r) {
         const which = ev.component === "diastolic" ? `Diastolic ${Math.round(r.value2 ?? 0)}` : `Systolic ${Math.round(r.value)}`;
         const rel = ev.side === "above" ? (ev.inclusive ? "at or above" : "above") : "below";
-        const what = ev.status === "warning" ? "the critical demo limit" : "the demo limit";
+        const what = ev.status === "warning" ? "the critical limit" : "the limit";
         return `${which} mmHg is ${rel} ${what} of ${ev.limit} mmHg.`;
       }
-      if (ev.status === "warning") return `${side} the critical demo limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
+      if (ev.status === "warning") return `${side} the critical limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
       // One-sided ranges read better as a limit than as a range.
-      if (def.low === undefined || def.high === undefined) return `${side} the demo limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
-      return `${side} your demo range of ${def.rangeText}${dur}.`;
+      if (def.low === undefined || def.high === undefined) return `${side} the limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
+      return `${side} your range of ${rangeTextFor(key, r)}${dur}.`;
     }
   }
 }
@@ -321,8 +375,10 @@ export function statusLine(key: IndicatorKey, ev: Evaluation, now: number): stri
 export function ruleText(key: IndicatorKey, ev: Evaluation): string {
   const def = INDICATORS[key];
   const word = ev.status === "warning" ? "Warning" : "Caution";
-  if (key === "mood") return ev.twoDays ? "Demo rule: Warning when mood is Very low on two days running." : "Demo rule: Caution when mood is Low, or Very low once.";
+  if (key === "mood") return ev.twoDays ? "Rule: Warning when mood is Very low on two days running." : "Rule: Caution when mood is Low, or Very low once.";
+  if (key === "exercise") return ev.twoDays ? "Rule: Warning when exercise is below 60 minutes on two days running." : "Rule: Caution when exercise is below the target of 120 minutes a day.";
   const rel = ev.side === "above" ? (ev.inclusive ? "at or above" : "above") : "below";
   const subject = ev.component ? `${ev.component} blood pressure` : def.phrase;
-  return `Demo rule: ${word} when ${subject} is ${rel} ${fmtLimit(key, ev.limit ?? 0)}.`;
+  const when = key === "glucose" && ev.latest?.timing === "after-meal" ? " after a meal" : "";
+  return `Rule: ${word} when ${subject}${when} is ${rel} ${fmtLimit(key, ev.limit ?? 0)}.`;
 }

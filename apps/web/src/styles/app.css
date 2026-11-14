@@ -62,8 +62,30 @@
 .anim-sheet { animation: mv-sheet-in 200ms ease-out; }
 .anim-dialog { animation: mv-dialog-in 200ms ease-out; }
 .anim-scrim { animation: mv-scrim-in 200ms ease-out; }
+@keyframes mv-sidebar-in { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.anim-sidebar { animation: mv-sidebar-in 200ms ease-out; }
+@keyframes mv-page-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+.anim-page { animation: mv-page-in 180ms ease-out; }
+
+/* A routine check that is due now: Start pulses slowly (well under 3 flashes a second), 5 times, then stays
+   green and still (WCAG 2.2.2). Acting on it stops it sooner (state/attention.ts). Reduced motion: no pulse. */
+@keyframes mv-attention-ok {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 55%, transparent); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px color-mix(in oklab, var(--ok) 0%, transparent); }
+}
+.anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out 5; }
+/* A crew picker row whose routine check is due now: tint and red bar while due (.row-due); the row blinks
+   5 times, or until it is opened (.anim-row-alert). Reduced motion keeps the tint and bar, no blink. */
+@keyframes mv-row-alert {
+  0%, 100% { background-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  50% { background-color: var(--warning-tint); }
+}
+.row-due { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); }
+.anim-row-alert { animation: mv-row-alert 1s ease-in-out 5; }
+
 
 @media (prefers-reduced-motion: reduce) {
+  .anim-attention-ok, .anim-row-alert { animation: none !important; }
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -80,3 +102,9 @@
 summary { list-style: none; cursor: pointer; }
 summary::-webkit-details-marker { display: none; }
 details[open] > summary .chev { transform: rotate(180deg); }
+
+/* Anatomy tones for the body figure layers. Neutral by design: status colour only appears on a flagged region. */
+:root { --organ: #D2D2D2; --organ-line: #A9A9A9; --bone: #F8F8F6; --bone-line: #ADADAD; --muscle: #D0D0D0; --muscle-line: #A6A6A6; }
+.dark { --organ: #2F2F2F; --organ-line: #505050; --bone: #404040; --bone-line: #5E5E5E; --muscle: #2C2C2C; --muscle-line: #4A4A4A; }
+:root { --bone-back: #E4E4E0; --cartilage: #DCE3E6; --hollow: #BEBEBE; }
+.dark { --bone-back: #303030; --cartilage: #34393B; --hollow: #151515; }

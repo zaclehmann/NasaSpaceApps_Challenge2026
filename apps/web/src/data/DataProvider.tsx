@@ -6,25 +6,6 @@ import type { DataSource } from "./DataSource";
 import { mockSource } from "./mockSource";
 import { buildHealth, type HealthView } from "./health";
 
-const STORAGE_KEY = "missionvitals.astronaut";
-
-function readStored(): string | null {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(id: string | null) {
-  try {
-    if (id) window.localStorage.setItem(STORAGE_KEY, id);
-    else window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Storage can be blocked. The choice then lasts for this session only.
-  }
-}
-
 interface DataContextValue {
   source: DataSource;
   version: number;
@@ -47,16 +28,10 @@ function applyUrlParams(source: DataSource): string | null {
 
 export function DataProvider({ source = mockSource, children }: { source?: DataSource; children: ReactNode }) {
   const [version, setVersion] = useState(0);
-  const [astronautId, setId] = useState<string | null>(() => {
-    const fromUrl = applyUrlParams(source);
-    const stored = fromUrl ?? readStored();
-    return stored && source.getCrew().some((c) => c.id === stored) ? stored : null;
-  });
+  // Every load starts at "Who's checking in?". Only a demo link (?astronaut=) opens someone directly.
+  const [astronautId, setId] = useState<string | null>(() => applyUrlParams(source));
   useEffect(() => source.subscribe(() => setVersion((v) => v + 1)), [source]);
-  const setAstronautId = useCallback((id: string | null) => {
-    writeStored(id);
-    setId(id);
-  }, []);
+  const setAstronautId = useCallback((id: string | null) => setId(id), []);
   const value = useMemo(() => ({ source, version, astronautId, setAstronautId }), [source, version, astronautId, setAstronautId]);
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

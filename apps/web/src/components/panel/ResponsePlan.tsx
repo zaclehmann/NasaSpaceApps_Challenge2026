@@ -5,7 +5,7 @@ import * as Popover from "@radix-ui/react-popover";
 import clsx from "clsx";
 import { Check } from "lucide-react";
 import { useState } from "react";
-import { GUIDANCE, formatClock, type Alert, type AlertActionKind, type IndicatorKey } from "@missionvitals/shared";
+import { formatClock, whatToDoFor, type Alert, type AlertActionKind, type IndicatorKey } from "@missionvitals/shared";
 import { useSource } from "../../data/DataProvider";
 import type { HealthView } from "../../data/health";
 import { useUi } from "../../state/ui";
@@ -81,22 +81,58 @@ function LogMenu({ alert, live }: { alert: Alert; live: boolean }) {
   );
 }
 
+/** The alert for an indicator, if one is active. */
+export const alertFor = (view: HealthView, indicator: IndicatorKey): Alert | undefined => view.alerts.find((a) => a.indicator === indicator);
+
+/** The main action for a reading with an unacknowledged alert. Lives in the panel header. */
+export function AcknowledgeButton({ alert }: { alert: Alert }) {
+  const source = useSource();
+  const { showToast } = useUi();
+  return (
+    <Button
+      variant="primary"
+      size="sm"
+      onClick={() => {
+        source.acknowledgeAlert(alert.id);
+        showToast("Alert acknowledged");
+      }}
+    >
+      Acknowledge
+    </Button>
+  );
+}
+
+/** The actions that apply whatever tab is open. Lives in the panel footer. */
+export function ResponseActions({ view, indicator }: { view: HealthView; indicator: IndicatorKey }) {
+  const { setReportOpen } = useUi();
+  const state = view.indicators[indicator];
+  const alert = alertFor(view, indicator);
+  const flagged = state.status === "caution" || state.status === "warning" || state.status === "watch" || state.ev.reason === "silent";
+  if (!flagged && !alert) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" onClick={() => setReportOpen(true)}>
+        Send report
+      </Button>
+      {alert && <LogMenu alert={alert} live={state.def.source !== "entered"} />}
+      {alert?.acknowledged && <span className="ml-auto type-caption text-muted-foreground">Acknowledged {formatClock(alert.acknowledgedAt ?? alert.firedAt)} MET</span>}
+    </div>
+  );
+}
+
+/** What to do now: the steps for the current state as a checklist, the action log and the rule that fired. */
 export function ResponsePlan({ view, indicator }: { view: HealthView; indicator: IndicatorKey }) {
   const source = useSource();
-  const { showToast, setReportOpen, startProcedure } = useUi();
+  const { startProcedure } = useUi();
   const state = view.indicators[indicator];
-  const alert = view.alerts.find((a) => a.indicator === indicator);
-  const steps = GUIDANCE[indicator].whatToDo[state.status];
+  const alert = alertFor(view, indicator);
+  const steps = whatToDoFor(indicator, state.status);
   const [local, setLocal] = useState<Record<string, number>>({});
   const entered = state.def.source === "entered";
 
-  if (state.status === "ok") {
-    return (
-      <section>
-        <h3 className="type-small font-semibold">What to do now</h3>
-        <p className="mt-1 type-small text-muted-foreground">{steps[0]}</p>
-      </section>
-    );
+  // In range, or simply due: one plain line. The Measure button is in the panel header.
+  if (state.status === "ok" || state.status === "due") {
+    return <p className="type-small text-muted-foreground">{steps[0]}</p>;
   }
 
   const doneAt = (step: string) => alert?.actions.find((a) => a.kind === "step" && a.note === step)?.t ?? local[step];
@@ -108,9 +144,8 @@ export function ResponsePlan({ view, indicator }: { view: HealthView; indicator:
   const others = alert?.actions.filter((a) => a.kind !== "step") ?? [];
 
   return (
-    <section>
-      <h3 className="type-small font-semibold">What to do now</h3>
-      <ol className="mt-1">
+    <div>
+      <ol>
         {steps.map((step, i) => {
           const at = doneAt(step);
           const done = at !== undefined;
@@ -139,29 +174,8 @@ export function ResponsePlan({ view, indicator }: { view: HealthView; indicator:
           );
         })}
       </ol>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        {alert && !alert.acknowledged && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              source.acknowledgeAlert(alert.id);
-              showToast("Alert acknowledged");
-            }}
-          >
-            Acknowledge
-          </Button>
-        )}
-        {state.ev.reason !== "not-taken" && (
-          <Button size="sm" onClick={() => setReportOpen(true)}>
-            Send report
-          </Button>
-        )}
-        {alert && <LogMenu alert={alert} live={!entered} />}
-        {alert?.acknowledged && <span className="type-caption text-muted-foreground">Acknowledged {formatClock(alert.acknowledgedAt ?? alert.firedAt)} MET</span>}
-      </div>
       {others.length > 0 && (
-        <ul aria-label="Action log" className="mt-2 space-y-0.5 type-caption">
+        <ul aria-label="Action log" className="mt-2 space-y-0.5 border-t border-border pt-2 type-caption">
           {others.map((a, i) => (
             <li key={i} className="flex gap-2.5">
               <span className="shrink-0 text-subtle-foreground">{formatClock(a.t)}</span>
@@ -171,6 +185,6 @@ export function ResponsePlan({ view, indicator }: { view: HealthView; indicator:
         </ul>
       )}
       {alert && <p className="mt-2 max-w-[62ch] type-caption text-subtle-foreground">{alert.rule}</p>}
-    </section>
+    </div>
   );
 }

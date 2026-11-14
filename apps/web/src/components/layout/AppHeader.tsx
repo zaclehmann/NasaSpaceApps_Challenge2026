@@ -1,22 +1,16 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// Header, 48 px: product and pages on the left, mission facts and the astronaut on the right.
+// Header, 48 px: sidebar button, product and pages on the left, mission facts centred, the astronaut on the right.
 // Separate items divided by spacing and hairlines, never joined with dots (ui.md 2).
-import * as Popover from "@radix-ui/react-popover";
+// From 1280 to 1536 px the page links share the bar, so vehicle and MET step out (they are in the sidebar).
 import clsx from "clsx";
-import { Menu } from "lucide-react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { formatDelay, formatMet, missionDay } from "@missionvitals/shared";
 import { useAstronaut, useData, useMission } from "../../data/DataProvider";
 import { useUi } from "../../state/ui";
 import { BadgeIcon } from "../status/StatusBadge";
 import { Button } from "../ui/Button";
-
-const NAV = [
-  { to: "/", label: "My health" },
-  { to: "/crew", label: "Crew" },
-  { to: "/learn", label: "Learn" },
-  { to: "/methodology", label: "Methodology" },
-];
+import { NAV, Sidebar, useSwitchAstronaut } from "./Sidebar";
+import { SoundToggle } from "./SoundToggle";
 
 const Rule = ({ className }: { className?: string }) => <span aria-hidden="true" className={clsx("h-5 w-px shrink-0 bg-border", className)} />;
 
@@ -30,7 +24,7 @@ export function EarthLinkStatus({ className }: { className?: string }) {
   return (
     <span className={clsx("flex items-center gap-1.5 whitespace-nowrap text-caution-text", className)}>
       <BadgeIcon status="caution" />
-      Earth link down, {queued} {queued === 1 ? "report" : "reports"} queued
+      {queued === 0 ? "Earth link down" : `Earth link down, ${queued} ${queued === 1 ? "report" : "reports"} queued`}
     </span>
   );
 }
@@ -38,67 +32,50 @@ export function EarthLinkStatus({ className }: { className?: string }) {
 export function AppHeader() {
   const astronaut = useAstronaut();
   const mission = useMission();
-  const { setAstronautId } = useData();
-  const { setDemoOpen, resetSelection } = useUi();
-  const navigate = useNavigate();
-  const switchAstronaut = () => {
-    resetSelection();
-    setAstronautId(null);
-    navigate("/");
-  };
+  const { setDemoOpen } = useUi();
+  const switchAstronaut = useSwitchAstronaut();
   return (
-    <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-background px-4 type-small">
-      <Link to="/" className="flex h-12 items-center type-body font-semibold max-md:hidden">
-        MissionVitals
-      </Link>
-      <nav aria-label="Main" className="flex h-12 items-stretch gap-4 max-xl:hidden">
-        {NAV.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end
-            className={({ isActive }) => clsx("flex items-center border-b-2 px-0.5", isActive ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
-          >
-            {n.label}
-          </NavLink>
-        ))}
-      </nav>
-      <Popover.Root>
-        <Popover.Trigger className="flex size-12 items-center justify-center rounded-md hover:bg-muted max-md:hidden xl:hidden" aria-label="Pages">
-          <Menu size={20} strokeWidth={1.5} aria-hidden="true" />
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Content align="start" sideOffset={4} className="z-50 w-56 rounded-lg bg-card p-2 text-foreground shadow-float outline-none">
-            <nav aria-label="Main" className="flex flex-col">
-              {NAV.map((n) => (
-                <Popover.Close asChild key={n.to}>
-                  <NavLink to={n.to} end className={({ isActive }) => clsx("flex min-h-12 items-center rounded-md px-3 type-small hover:bg-muted", isActive && "font-semibold")}>
-                    {n.label}
-                  </NavLink>
-                </Popover.Close>
-              ))}
-            </nav>
-          </Popover.Content>
-        </Popover.Portal>
-      </Popover.Root>
+    <header className="grid h-12 shrink-0 grid-cols-[auto_1fr] items-center gap-4 md:grid-cols-[1fr_auto_1fr] border-b border-border bg-background px-4 type-small">
+      <div className="flex min-w-0 items-center gap-3 md:min-w-max">
+        <Sidebar />
+        <Link to="/" className="flex h-12 items-center type-body font-semibold whitespace-nowrap max-md:hidden">
+          MissionVitals
+        </Link>
+        <nav aria-label="Main" className="ml-1 flex h-12 items-stretch gap-4 max-xl:hidden">
+          {NAV.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end
+              className={({ isActive }) => clsx("flex items-center border-b-2 px-0.5 whitespace-nowrap", isActive ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+            >
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
+        {astronaut && <span className="truncate font-medium md:hidden">{astronaut.name}</span>}
+      </div>
 
-      {astronaut && <span className="font-medium md:hidden">{astronaut.name}</span>}
-      <div className="ml-auto flex items-center gap-4">
-        <span className="whitespace-nowrap max-lg:hidden">{mission.name}</span>
+      <div className="flex min-w-0 items-center justify-end gap-4 md:justify-center">
+        <span className="whitespace-nowrap max-2xl:hidden">{mission.name}</span>
         <span className="whitespace-nowrap text-muted-foreground max-md:hidden">Mission day {missionDay(mission.met)}</span>
-        <span className="whitespace-nowrap text-muted-foreground max-lg:hidden">MET {formatMet(mission.met)}</span>
+        <span className="whitespace-nowrap text-muted-foreground max-2xl:hidden">MET {formatMet(mission.met)}</span>
         <Rule className="max-md:hidden" />
         <EarthLinkStatus />
-        <Rule className="max-md:hidden" />
-        <div className="flex items-center gap-3 max-md:hidden">
-          {astronaut && <span className="font-medium whitespace-nowrap">{astronaut.name}</span>}
-          <Button variant="text" size="sm" className="text-muted-foreground" onClick={switchAstronaut}>
-            Switch
-          </Button>
-          <Button variant="text" size="sm" className="text-muted-foreground" onClick={() => setDemoOpen(true)}>
-            Demo
-          </Button>
-        </div>
+        <span className="md:hidden">
+          <SoundToggle compact />
+        </span>
+      </div>
+
+      <div className="flex items-center justify-end gap-3 max-md:hidden">
+        <SoundToggle />
+        {astronaut && <span className="font-medium whitespace-nowrap">{astronaut.name}</span>}
+        <Button variant="text" size="sm" className="text-muted-foreground" onClick={switchAstronaut}>
+          Switch
+        </Button>
+        <Button variant="text" size="sm" className="text-muted-foreground" onClick={() => setDemoOpen(true)}>
+          Demo
+        </Button>
       </div>
     </header>
   );

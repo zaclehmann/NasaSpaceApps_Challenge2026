@@ -1,38 +1,42 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // One strip under the header that answers "Am I OK?" (ui.md 4.2) and names the next routine check.
 // An unacknowledged Warning turns the strip into the Warning bar (ui.md 5.6): tint, red rule, View.
-// No sound, no flashing, and nothing is said twice.
+// Nothing is said twice. A check that is due now shows a red Postpone and a green Start that pulses,
+// and the routine alarm rings (rung from the app shell, so it sounds on every page).
+// "Routine" opens today's full routine as a page. On phone the strip keeps only Start; Routine and
+// Symptoms move to the More tab.
 import clsx from "clsx";
+import { ListChecks, Stethoscope } from "lucide-react";
 import { Fragment } from "react";
 import { useNavigate } from "react-router-dom";
-import { nextTask, type IndicatorKey } from "@missionvitals/shared";
+import { nextTask } from "@missionvitals/shared";
 import type { HealthView } from "../../data/health";
-import { useUi } from "../../state/ui";
+import { useUi, type Selection } from "../../state/ui";
 import { buildSummary } from "../panel/summary";
 import { BadgeIcon } from "../status/StatusBadge";
 import { Button } from "../ui/Button";
-import { taskStatusText } from "./RoutineList";
+import { TaskActions, taskStatusText } from "./RoutineList";
 
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 export function StatusStrip({ view, routine }: { view: HealthView; routine: boolean }) {
-  const { select, startProcedure } = useUi();
+  const { select, setRoutineOpen, setSymptomsOpen } = useUi();
   const navigate = useNavigate();
   const s = buildSummary(view);
   const warning = view.alerts.find((a) => a.status === "warning" && !a.acknowledged);
   const next = nextTask(view.routine.entries);
   const canStart = next && (next.state.kind === "due" || next.state.kind === "overdue");
-  const open = (key: IndicatorKey) => {
+  const open = (target: Selection) => {
     navigate("/");
-    select({ kind: "indicator", key });
+    select(target);
   };
   const link = "relative underline decoration-border-strong underline-offset-4 hover:decoration-foreground max-xl:before:absolute max-xl:before:inset-x-0 max-xl:before:-inset-y-3 max-xl:before:content-['']";
   const names = (items: typeof s.names) =>
     items.map((i, n) => (
-      <Fragment key={i.key}>
+      <Fragment key={i.id}>
         {n > 0 && (n === items.length - 1 ? " and " : ", ")}
-        <button type="button" className={link} onClick={() => open(i.key)}>
-          {i.def.phrase}
+        <button type="button" className={link} onClick={() => open(i.target)}>
+          {i.phrase}
         </button>
       </Fragment>
     ));
@@ -52,18 +56,23 @@ export function StatusStrip({ view, routine }: { view: HealthView; routine: bool
         </span>
       </p>
       {warning && (
-        <Button size="sm" onClick={() => open(warning.indicator)}>
+        <Button size="sm" onClick={() => open({ kind: "indicator", key: warning.indicator })}>
           View
         </Button>
       )}
       {routine && (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="type-small text-muted-foreground">{next ? `Next check: ${lower(next.task.label)}, ${lower(taskStatusText(next, view.now))}` : "Today's checks are done"}</span>
-          {canStart && next && (
-            <Button variant={s.status === "ok" ? "primary" : "secondary"} size="sm" onClick={() => startProcedure({ kind: next.task.kind, taskId: next.task.id })}>
-              Start
-            </Button>
-          )}
+          {canStart && next && <TaskActions e={next} startOnlyOnPhone />}
+          <span aria-hidden="true" className="h-5 w-px bg-border max-md:hidden" />
+          <Button size="sm" variant="secondary" className="max-md:hidden" onClick={() => setRoutineOpen(true)}>
+            <ListChecks size={16} strokeWidth={1.5} aria-hidden="true" />
+            Routine
+          </Button>
+          <Button size="sm" variant="secondary" className="max-md:hidden" onClick={() => setSymptomsOpen(true)}>
+            <Stethoscope size={16} strokeWidth={1.5} aria-hidden="true" />
+            Symptoms
+          </Button>
         </div>
       )}
     </div>

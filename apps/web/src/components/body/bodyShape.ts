@@ -118,7 +118,7 @@ export const CALLOUTS: Record<RegionId, Callout> = {
   heart: { side: "right", y: 152, anchor: [182, 152] },
   gut: { side: "left", y: 242, anchor: [150, 242] },
   musculoskeletal: { side: "right", y: 264, anchor: [261, 264] },
-  whole: { side: "left", y: 470, anchor: [105, 470] },
+  whole: { side: "left", y: 470, anchor: [112, 470] },
 };
 
 /** Regions in reading order, top to bottom. */

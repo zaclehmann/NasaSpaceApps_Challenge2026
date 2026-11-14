@@ -1,5 +1,6 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// When to escalate (ui.md 5.3): three levels in order. The current one has a filled marker and 600 weight.
+// When to escalate (ui.md 5.3): three levels in order. Each current level has a filled marker and 600 weight.
+// A Warning involves both the crew medical officer and the flight surgeon, so both are current.
 import clsx from "clsx";
 import type { Escalation } from "@missionvitals/shared";
 
@@ -11,13 +12,13 @@ const LEVELS: { id: EscalationLevel; title: string }[] = [
   { id: "surgeon", title: "Flight surgeon on Earth" },
 ];
 
-export function EscalationLevels({ escalation, current }: { escalation: Escalation; current: EscalationLevel }) {
+export function EscalationLevels({ escalation, current }: { escalation: Escalation; current: EscalationLevel[] }) {
   return (
     <section>
-      <h3 className="type-small font-semibold">When to escalate</h3>
-      <ol className="mt-1.5 space-y-1.5">
+      <h3 className="mb-1.5 type-small font-semibold">When to escalate</h3>
+      <ol className="space-y-1.5">
         {LEVELS.map((l, i) => {
-          const on = l.id === current;
+          const on = current.includes(l.id);
           return (
             <li key={l.id} className="flex gap-2.5 type-small">
               <span

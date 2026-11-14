@@ -1,8 +1,9 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Demo controls (ui.md 5.10). Scenarios change the simulated data itself, not only the display.
 import clsx from "clsx";
-import { SCENARIOS } from "@missionvitals/shared";
+import { MISSION_SETTINGS, SCENARIOS, formatDelay } from "@missionvitals/shared";
 import { useAstronaut, useCrew, useData, useMission } from "../../data/DataProvider";
+import { resetAttention } from "../../state/attention";
 import { useUi } from "../../state/ui";
 import { useThemeChoice, type ThemeChoice } from "../../theme/useTheme";
 import { Scale } from "../ui/Scale";
@@ -46,10 +47,29 @@ export function DemoSheet() {
                 checked={mission.scenario === s.id && mission.scenarioTarget === target}
                 onChange={() => {
                   resetSelection();
+                  // A new scenario starts fresh: its due checks pulse and ring again.
+                  resetAttention();
                   source.setScenario(s.id, target);
                 }}
                 title={`${s.number}. ${s.name}`}
                 description={s.description}
+              />
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="type-small font-semibold">Mission setting</legend>
+          <p className="type-caption text-subtle-foreground">Changes the mission name and the Earth link delay only. Simulated values.</p>
+          <div className="mt-1 divide-y divide-border">
+            {MISSION_SETTINGS.map((m) => (
+              <RadioRow
+                key={m.id}
+                name="mission-setting"
+                checked={mission.setting === m.id}
+                onChange={() => source.setMissionSetting(m.id)}
+                title={m.label}
+                description={`${m.missionName}. Earth link delay ${formatDelay(m.delaySec)} one way${m.delaySec < 10 ? ", near real-time" : ""}.`}
               />
             ))}
           </div>

@@ -15,6 +15,7 @@ function read(): ThemeChoice {
   } catch {
     // Fall through to the default.
   }
+  // System by default: follow the device. The sleep period still turns "system" dark (useApplyTheme).
   return "system";
 }
 

@@ -12,11 +12,12 @@ export function IndicatorList({ view }: { view: HealthView }) {
       <h2 className="sr-only">Indicators</h2>
       {INDICATOR_GROUPS.map((g) => (
         <div key={g.source}>
-          <div className="flex items-baseline justify-between gap-3 px-4 pt-4 pb-1">
+          <div className="flex items-baseline justify-between gap-3 px-4 pt-3 pb-1.5">
             <h3 className="type-label text-muted-foreground">{g.title}</h3>
             {g.source !== "entered" && <span className="type-caption text-subtle-foreground">{formatClock(view.now)} MET</span>}
           </div>
-          <ul>
+          {/* A grey line above and below every row, the full width of the column. */}
+          <ul className="divide-y divide-border border-y border-border">
             {g.keys.map((k) => (
               <IndicatorRow key={k} state={view.indicators[k]} now={view.now} selected={selection.kind === "indicator" && selection.key === k} linked={hoverIndicators.has(k)} acknowledged={view.alerts.some((a) => a.indicator === k && a.acknowledged)} />
             ))}

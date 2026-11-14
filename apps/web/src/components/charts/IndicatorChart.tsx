@@ -64,13 +64,14 @@ function scale(key: IndicatorKey, values: number[]): { domain: [number, number];
   const all = [...values];
   if (def.low !== undefined) all.push(def.low);
   if (def.high !== undefined) all.push(def.high);
-  if (key === "bp") all.push(85);
+  if (key === "bp") all.push(85, 60);
   if (key === "sleep") all.push(0, 9);
+  if (key === "exercise") all.push(0);
   if (!all.length) return { domain: [0, 1], ticks: [0, 1] };
   let lo = Math.min(...all);
   let hi = Math.max(...all);
   const pad = Math.max((hi - lo) * 0.06, def.decimals ? 0.1 : 1);
-  lo = key === "sleep" || key === "radiation" ? Math.max(0, lo - pad) : lo - pad;
+  lo = key === "sleep" || key === "exercise" || key === "radiation" ? Math.max(0, lo - pad) : lo - pad;
   hi = key === "spo2" ? Math.min(100, hi + pad) : hi + pad;
   const step = STEPS.find((x) => (hi - lo) / x <= 5) ?? 200;
   const d0 = Math.floor(lo / step) * step;
@@ -186,7 +187,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
     ? `${def.name} over ${WINDOW_WORDS[win]}. Latest ${latest ? formatValue(indicator, latest.value, latest.value2) : ""}${indicator === "mood" ? "" : ` ${def.unit}`}, lowest ${formatValue(
         indicator === "bp" ? "hr" : indicator,
         Math.min(...values),
-      )}, highest ${formatValue(indicator === "bp" ? "hr" : indicator, Math.max(...values))}. Demo range ${def.rangeText}.`
+      )}, highest ${formatValue(indicator === "bp" ? "hr" : indicator, Math.max(...values))}. ${indicator === "exercise" ? "Demo target" : "Demo range"} ${def.rangeText}.`
     : `${def.name} over ${WINDOW_WORDS[win]}. No readings.`;
 
   const dotColor = (s: Status) => (s === "ok" ? "var(--foreground)" : STATUS_VAR[s]);
@@ -204,7 +205,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
 
   const chart = (
     <ResponsiveContainer width="100%" height={compact ? 44 : height}>
-      <ComposedChart data={points} margin={compact ? { top: 4, right: 4, bottom: 4, left: 4 } : { top: 18, right: 66, bottom: 0, left: 0 }} accessibilityLayer={false}>
+      <ComposedChart data={points} margin={compact ? { top: 4, right: 4, bottom: 4, left: 4 } : { top: 18, right: indicator === "exercise" ? 100 : 66, bottom: 0, left: 0 }} accessibilityLayer={false}>
         <defs>
           <pattern id="mv-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="6" stroke="var(--border-strong)" strokeWidth="1.5" />
@@ -248,7 +249,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
           <ReferenceLine y={def.high} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: `${fmtY(def.high)} demo`, position: "right", ...TEXT }} />
         )}
         {!compact && def.low !== undefined && indicator !== "mood" && indicator !== "bp" && (
-          <ReferenceLine y={def.low} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: `${fmtY(def.low)} demo`, position: "right", ...TEXT }} />
+          <ReferenceLine y={def.low} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: indicator === "exercise" ? `${fmtY(def.low)} demo target` : `${fmtY(def.low)} demo`, position: "right", ...TEXT }} />
         )}
         {gaps.map(([a, b]) => (
           <ReferenceArea key={a} x1={Math.max(a, start)} x2={b} fill="url(#mv-hatch)" fillOpacity={1} stroke="none" label={compact ? undefined : { value: "No data", position: "insideTop", ...TEXT }} />
@@ -317,6 +318,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
           </>
         )}
         {!compact && indicator === "bp" && <ReferenceLine y={85} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: "85 demo", position: "right", ...TEXT }} />}
+        {!compact && indicator === "bp" && <ReferenceLine y={60} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: "60 demo", position: "right", ...TEXT }} />}
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -333,7 +335,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
     <figure className="min-w-0">
       <figcaption className="flex items-baseline justify-between gap-3">
         <span className="type-caption text-subtle-foreground">
-          {indicator === "mood" ? "1 Very low to 5 Very good" : indicator === "bp" ? "mmHg, diastolic to systolic" : def.unit}. Shaded: demo range{indicator === "bp" ? ", systolic" : ""}.
+          {indicator === "mood" ? "1 Very low to 5 Very good" : indicator === "bp" ? "mmHg, diastolic to systolic" : def.unit}. Shaded: demo range{indicator === "bp" ? ", systolic" : indicator === "glucose" ? ", fasting" : indicator === "exercise" ? " (target)" : ""}.
         </span>
         <Button variant="text" size="sm" aria-pressed={table} onClick={() => setTable((x) => !x)}>
           {table ? "View as chart" : "View as table"}

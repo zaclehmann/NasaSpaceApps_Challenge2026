@@ -65,7 +65,7 @@ function Content() {
                       <button
                         key={r.id}
                         type="button"
-                        className="relative font-medium underline decoration-border-strong underline-offset-4 hover:decoration-foreground max-xl:before:absolute max-xl:before:inset-x-0 max-xl:before:-inset-y-3.5 max-xl:before:content-['']"
+                        className="relative inline-flex min-h-6 items-center font-medium underline decoration-border-strong underline-offset-4 hover:decoration-foreground max-xl:before:absolute max-xl:before:inset-x-0 max-xl:before:-inset-y-3 max-xl:before:content-['']"
                         onClick={() => {
                           select({ kind: "region", id: r.id });
                           navigate("/?tab=body");
