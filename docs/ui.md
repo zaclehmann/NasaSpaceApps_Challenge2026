@@ -62,7 +62,7 @@ Paste sections 2 and 3 into every AI coding prompt.
 - No space decoration: stars, planets, orbits, nebulae, rockets, HUD frames, hexagons, scanlines.
 - No terminal look, no green-on-black.
 - No shadow except `--shadow-float` on menus, dialogs, sheets and toasts.
-- No 3D, anatomical, holographic or wireframe body; no organs drawn.
+- No holographic or wireframe body, no realistic or textbook anatomy. The body figure may show schematic anatomy (section 6.1) with soft volume shading; it is the only shaded element in the app.
 
 **Layout**
 - No grid of identical rounded cards; no row of KPI tiles; no hero or welcome banner.
@@ -274,7 +274,7 @@ Background tints (rows and body regions, Watch and above only):
 2. Green stays small: a badge, never a fill, row or region. A screen that's all green hides the one problem.
 3. Status colour never marks selection, focus or links. Those are black/white (`--foreground`) and `--link`.
 4. Worst state wins for a body region and for the overall summary.
-5. A legend with all five badges and words sits under the body figure at all times.
+5. The status key (all five badges, words and meanings) is always one click away: the **Status key** item in the bottom status bar on tablet and desktop, and printed under the body figure on phone.
 6. The status word is always printed next to the badge. Never the badge alone.
 
 ### 3.4 Validator results (dataviz skill, `validate_palette.js`, all-pairs)
@@ -501,6 +501,8 @@ Opened from the routine bar, a **Measure** button or a body region. Dialog 560 p
 
 ### 5.7 Routine and light gamification
 
+- **Due now**: the actions are a solid red **Postpone** (no pulse) and a solid green **Start** that pulses slowly (stopped by reduced motion), the same in the status strip and the routine table. **Postpone** opens a dialog with a dropdown (5, 10, 15 or 30 minutes, 1 or 2 hours, default 30) and shows the new due time. a short two-tone alarm rings on every page while the task stays due: every 30 s for the first 2 min, every 15 s to 5 min, every 10 s to 10 min, then every 2.5 s, counted from the due time. It stops when the task is done, postponed or turns overdue, pauses while a measurement or the Postpone dialog is open, and waits for the first click or key press if the browser has not unlocked audio. The full routine opens as a page from **Routine** in the strip, as a table with Status and Actions columns.
+
 This is a duty roster, not a game.
 
 - Routine bar as in 5.2. Clicking it opens a popover listing today's tasks: time, task, status (Done 07:02, Due now, Due 16:00, Overdue 40 min) and **Start**.
@@ -537,7 +539,14 @@ A sheet, 440 px, opened from any escalation section.
 
 ### 6.1 Drawing
 - Front view, A-pose: arms about 20° out from the body, hands clear of the hips, feet about shoulder width apart.
-- Flat `--figure` fill. No outline, shading, face, organs or gender cues.
+- `--figure` fill with soft volume shading from SVG lighting filters (no colour added), and a 1 px `--border-strong` contour. No face or gender cues.
+- Three anatomy views, switched with a segmented control above the figure and remembered on the device:
+  - **Organs**: brain, eyes, inner ear, windpipe and bronchi, a three-lobed right lung and two-lobed left lung, heart with its great vessels, liver, gallbladder, stomach, spleen, large and small intestine, bladder, lymph nodes and thymus. The back shows the cerebellum, spinal cord and kidneys.
+  - **Muscles**: the main surface muscles by name, front (pectorals, deltoids, biceps, abdominals, obliques, quadriceps and so on) and back (trapezius, latissimus, triceps, glutes, hamstrings, calves).
+  - **Skeleton**: skull and jaw, 24 vertebrae and sacrum, 12 pairs of ribs with their cartilage, sternum, clavicles, shoulder blades, pelvis and every long bone, with the organs visible behind the ribs.
+- Each view has a front and a back, and organs sit at their true levels against the ribs and spine (heart behind the sternum between ribs 2 and 6, liver under the right dome of the diaphragm, kidneys from T12 to L3).
+- The drawings are schematic teaching diagrams. No status, alert or advice is computed from them.
+- Anatomy uses neutral tone tokens (`--organ`, `--bone`, `--muscle` and their `-line` pairs). Status colour appears only on a region that is Watch, Caution, Warning or No data. A line under the view switch gives the readings that matter for the view (exercise for Muscles, exercise and dose for Skeleton).
 - SVG, viewBox `0 0 320 600`. Scales with its column: max 440 px wide, min 240 px.
 
 ### 6.2 Regions
@@ -553,7 +562,7 @@ Nine regions, each its own focusable SVG group.
 | Lungs and oxygen | Upper chest | SpO₂ | Hypoxia |
 | Immune system | Neck and underarm marks | Temperature (fever check) | Altered Immune System Responses |
 | Gut and metabolism | Abdomen | Blood glucose | Inadequate Food and Nutrition |
-| Bones and muscles | Arms and legs | Exercise log | Spaceflight-Induced Bone Changes; Reduced Cardiorespiratory and Musculoskeletal Fitness |
+| Bones and muscles | Arms and legs | Exercise (shirt, confirmed daily) | Spaceflight-Induced Bone Changes; Reduced Cardiorespiratory and Musculoskeletal Fitness |
 | Whole body | Thin ring around the whole figure, crew-wide | Habitat radiation | Radiation-Induced Cancers |
 
 ### 6.3 States
@@ -623,7 +632,7 @@ From the dataviz skill. Each chart shows one indicator.
 
 - Voice: a calm crewmate. Not a doctor, not a robot.
 - Fact first, then action: "Heart rate above 110 bpm for 9 minutes. Rest and re-measure."
-- Every number has a unit; every threshold says "demo".
+- Every number has a unit. Thresholds are demo values, stated once as the source of truth (the status bar notice and the Methodology page), not repeated on every line (decided by Zac, 14 Nov).
 - Time in MET ("MET 141d 14:33"); relative time only for freshness ("Updated 12 seconds ago").
 - Missing data: "No reading for 6 minutes", never a stale number.
 - Buttons say exactly what happens, and the confirmation repeats the verb: **Save reading** → "Reading saved". **Queue report** → "Report queued".

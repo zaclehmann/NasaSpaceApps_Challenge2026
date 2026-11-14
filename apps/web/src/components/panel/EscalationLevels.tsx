@@ -14,8 +14,8 @@ const LEVELS: { id: EscalationLevel; title: string }[] = [
 export function EscalationLevels({ escalation, current }: { escalation: Escalation; current: EscalationLevel }) {
   return (
     <section>
-      <h3 className="type-small font-semibold">When to escalate</h3>
-      <ol className="mt-1.5 space-y-1.5">
+      <h3 className="mb-1.5 type-small font-semibold">When to escalate</h3>
+      <ol className="space-y-1.5">
         {LEVELS.map((l, i) => {
           const on = l.id === current;
           return (

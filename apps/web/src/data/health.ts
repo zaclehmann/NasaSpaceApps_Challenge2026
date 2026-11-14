@@ -3,8 +3,11 @@
 import {
   INDICATORS,
   INDICATOR_KEYS,
+  PART_BY_ID,
   REGIONS,
   classify,
+  symptomStatus,
+  routineContext,
   evaluate,
   formatValue,
   startOfDay,
@@ -87,6 +90,10 @@ export interface HealthView {
   indicators: Record<IndicatorKey, IndicatorState>;
   /** null: this prototype does not measure the region directly. */
   regions: Record<RegionId, Status | null>;
+  /** The same, from readings alone. The figure tints a region from this; a symptom marks only its own part. */
+  regionReadings: Record<RegionId, Status | null>;
+  /** Status of each body part that has an active symptom, by part id. */
+  parts: Record<string, Status>;
   overall: Status;
   routine: RoutineSummary;
   alerts: Alert[];
@@ -103,10 +110,11 @@ export function buildHealth(source: DataSource, astronaut: Astronaut): HealthVie
     const entered = def.source === "entered";
     const readings = source.getReadings(astronaut.id, key, entered ? "30d" : "1h");
     const tasks = routine.entries.filter((e) => e.task.kind === key);
-    const openTask = tasks.find((e) => e.state.kind === "overdue") ?? tasks.find((e) => e.state.kind === "due");
-    const ev = evaluate(key, readings, { now, routine: openTask ? (openTask.state.kind === "overdue" ? "overdue" : "due") : "none" });
+    // The task to start from this row: overdue first, then due, then the next one today.
+    const openTask = tasks.find((e) => e.state.kind === "overdue") ?? tasks.find((e) => e.state.kind === "due") ?? tasks.find((e) => e.state.kind === "upcoming");
+    const ev = evaluate(key, readings, { now, routine: routineContext(routine.entries, key) });
     const latest = ev.latest;
-    const current = latest !== undefined && ev.status !== "nodata" && (!entered || latest.t >= startOfDay(now));
+    const current = latest !== undefined && ev.status !== "nodata" && ev.status !== "due" && (!entered || latest.t >= startOfDay(now));
     indicators[key] = {
       key,
       def,
@@ -122,18 +130,39 @@ export function buildHealth(source: DataSource, astronaut: Astronaut): HealthVie
     if (entered && latest && latest.t >= startOfDay(now) && (lastCheckIn === undefined || latest.t > lastCheckIn)) lastCheckIn = latest.t;
   }
   const regions = {} as Record<RegionId, Status | null>;
-  // A check that is simply due today does not make a region or the overall status "No data".
-  const counted = (keys: IndicatorKey[]) => {
-    const live = keys.filter((k) => indicators[k].ev.reason !== "not-taken");
-    return live.length ? worstStatus(live.map((k) => indicators[k].status)) : keys.length ? ("nodata" as Status) : ("ok" as Status);
+  // Due ranks with In range, so a check that is simply due never makes things look worse.
+  // A region whose only readings are all due says so, rather than claiming In range.
+  const counted = (keys: IndicatorKey[]): Status => {
+    const statuses = keys.map((k) => indicators[k].status);
+    const worst = worstStatus(statuses);
+    return worst === "ok" && statuses.length > 0 && statuses.every((s) => s === "due") ? "due" : worst;
   };
   for (const r of REGIONS) regions[r.id] = r.indicators.length ? counted(r.indicators) : null;
+
+  // Active symptoms give their body part a status. A part with several takes the worst.
+  const parts: Record<string, Status> = {};
+  for (const sym of source.getSymptoms(astronaut.id)) {
+    const st = symptomStatus(sym, now);
+    if (!st) continue;
+    parts[sym.partId] = parts[sym.partId] ? worstStatus([parts[sym.partId], st]) : st;
+  }
+  // A region's status is the worst of its readings and the symptoms on its parts.
+  // The figure still tints regions from readings alone, so a sore knee marks the knee, not every limb.
+  const combined = { ...regions };
+  for (const [partId, st] of Object.entries(parts)) {
+    const region = PART_BY_ID[partId]?.region;
+    if (!region) continue;
+    const base = combined[region];
+    combined[region] = base === null ? st : worstStatus([base, st]);
+  }
   return {
     astronaut,
     now,
     indicators,
-    regions,
-    overall: counted(INDICATOR_KEYS),
+    regions: combined,
+    regionReadings: regions,
+    parts,
+    overall: worstStatus([...INDICATOR_KEYS.map((k) => indicators[k].status), ...Object.values(parts)]),
     routine,
     alerts: source.getAlerts(astronaut.id),
     lastCheckIn,
@@ -142,6 +171,6 @@ export function buildHealth(source: DataSource, astronaut: Astronaut): HealthVie
 
 /** Indicators sorted worst first, for the summary and the default selection. */
 export function byPriority(view: HealthView): IndicatorState[] {
-  const rank: Record<Status, number> = { warning: 0, caution: 1, watch: 2, nodata: 3, ok: 4 };
+  const rank: Record<Status, number> = { warning: 0, caution: 1, watch: 2, nodata: 3, due: 4, ok: 5 };
   return INDICATOR_KEYS.map((k) => view.indicators[k]).sort((a, b) => rank[a.status] - rank[b.status]);
 }

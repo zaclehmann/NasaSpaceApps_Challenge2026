@@ -33,8 +33,7 @@ export const REGIONS: RegionDef[] = [
     id: "musculoskeletal",
     name: "Bones and muscles",
     area: "Arms and legs",
-    indicators: [],
-    related: "Exercise log",
+    indicators: ["exercise"],
     risks: ["Spaceflight-Induced Bone Changes", "Reduced Cardiorespiratory and Musculoskeletal Fitness"],
   },
 ];

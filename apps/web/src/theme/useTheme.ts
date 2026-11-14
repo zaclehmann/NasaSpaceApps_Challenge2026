@@ -15,7 +15,8 @@ function read(): ThemeChoice {
   } catch {
     // Fall through to the default.
   }
-  return "system";
+  // Dark by default: the crew tablet lives in a dim habitat. Light and System stay one tap away.
+  return "dark";
 }
 
 let current: ThemeChoice | undefined;

@@ -1,9 +1,14 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Shared types for MissionVitals. Plain TypeScript, no React.
 
-/** The five status states (ui.md 3.2). */
-export type Status = "ok" | "watch" | "caution" | "warning" | "nodata";
+/**
+ * The five status states (ui.md 3.2), plus "due": an entered measurement that is not taken yet
+ * but is not late either. Due is neutral: plain text, no badge, no colour, and it never makes
+ * a region or the overall status worse.
+ */
+export type Status = "ok" | "watch" | "caution" | "warning" | "nodata" | "due";
 
+/** The five states with a badge, in legend order. */
 export const STATUSES: readonly Status[] = ["ok", "watch", "caution", "warning", "nodata"];
 
 export const STATUS_WORD: Record<Status, string> = {
@@ -12,11 +17,13 @@ export const STATUS_WORD: Record<Status, string> = {
   caution: "Caution",
   warning: "Warning",
   nodata: "No data",
+  due: "Due",
 };
 
-/** Severity order used for "worst state wins" (ui.md 3.3 rule 4). */
+/** Severity order used for "worst state wins" (ui.md 3.3 rule 4). Due ranks with In range. */
 export const STATUS_RANK: Record<Status, number> = {
   ok: 0,
+  due: 0,
   nodata: 1,
   watch: 2,
   caution: 3,
@@ -29,14 +36,14 @@ export function worstStatus(list: readonly Status[]): Status {
   return worst;
 }
 
-export type IndicatorKey = "hr" | "spo2" | "temp" | "bp" | "glucose" | "sleep" | "mood" | "radiation";
+export type IndicatorKey = "hr" | "spo2" | "temp" | "bp" | "glucose" | "sleep" | "exercise" | "mood" | "radiation";
 
 /** Where a reading comes from, which also sets the list group (ui.md 5.2). */
 export type IndicatorSource = "live" | "entered" | "habitat";
 
 export type ChartWindow = "1h" | "24h" | "7d" | "14d" | "30d";
 
-export type DeviceId = "shirt" | "cuff" | "glucometer" | "dosimeter" | "self";
+export type DeviceId = "shirt" | "cuff" | "thermometer" | "glucometer" | "dosimeter" | "self";
 
 export type GlucoseTiming = "fasting" | "before-meal" | "after-meal";
 
@@ -100,7 +107,8 @@ export interface Mission {
   scenarioTarget: string;
 }
 
-export type RoutineKind = IndicatorKey | "exercise";
+/** Every routine task records one indicator. */
+export type RoutineKind = IndicatorKey;
 
 export interface RoutineTask {
   id: string;
@@ -120,6 +128,10 @@ export type TaskState =
 export interface RoutineEntry {
   task: RoutineTask;
   state: TaskState;
+  /** When the task is due today, after any postponement. */
+  dueAt: number;
+  /** True when the crew member pushed the task back from its scheduled time. */
+  postponed: boolean;
 }
 
 export interface RoutineSummary {
@@ -170,6 +182,8 @@ export interface Report {
   note: string;
   items: ReportItem[];
   actions: string[];
+  /** Active symptoms in words, e.g. "Left knee: pain, 5 of 10, since day 141 09:00". For the flight surgeon only. */
+  symptoms?: string[];
   /** queued: waiting for the link. in-transit: sent, not yet arrived. delivered: arrived on Earth. */
   state: "queued" | "in-transit" | "delivered";
   sentAt?: number;

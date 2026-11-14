@@ -7,3 +7,5 @@ export * from "./status";
 export * from "./routine";
 export * from "./scenarios";
 export * from "./guidance";
+export * from "./bodyParts";
+export * from "./symptoms";

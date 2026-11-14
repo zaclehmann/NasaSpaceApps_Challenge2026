@@ -3,7 +3,13 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import type { IndicatorKey, RegionId, RoutineKind } from "@missionvitals/shared";
 
-export type Selection = { kind: "indicator"; key: IndicatorKey } | { kind: "region"; id: RegionId };
+/** A part's layer comes from PART_BY_ID[id].layer, so a part selection only needs its id. */
+export type Selection = { kind: "indicator"; key: IndicatorKey } | { kind: "region"; id: RegionId } | { kind: "part"; id: string };
+
+/** The Log symptom dialog: for a known part, or open with no part chosen yet. */
+export interface SymptomRequest {
+  partId?: string;
+}
 
 export interface ProcedureRequest {
   kind: RoutineKind;
@@ -29,6 +35,18 @@ interface UiValue {
   setReportOpen: (open: boolean) => void;
   demoOpen: boolean;
   setDemoOpen: (open: boolean) => void;
+  /** Today's routine, shown as a full page with a back button. */
+  routineOpen: boolean;
+  setRoutineOpen: (open: boolean) => void;
+  symptomRequest: SymptomRequest | null;
+  startSymptom: (r?: SymptomRequest) => void;
+  closeSymptom: () => void;
+  /** The page listing every logged symptom. */
+  symptomsOpen: boolean;
+  setSymptomsOpen: (open: boolean) => void;
+  /** The routine task whose Postpone dialog is open, or null. */
+  postponeTaskId: string | null;
+  setPostponeTaskId: (taskId: string | null) => void;
   toast: string | null;
   showToast: (message: string) => void;
   resetSelection: () => void;
@@ -44,6 +62,10 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [procedure, setProcedure] = useState<ProcedureRequest | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [routineOpen, setRoutineOpen] = useState(false);
+  const [symptomRequest, setSymptomRequest] = useState<SymptomRequest | null>(null);
+  const [symptomsOpen, setSymptomsOpen] = useState(false);
+  const [postponeTaskId, setPostponeTaskId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -79,11 +101,20 @@ export function UiProvider({ children }: { children: ReactNode }) {
       setReportOpen,
       demoOpen,
       setDemoOpen,
+      routineOpen,
+      setRoutineOpen,
+      symptomRequest,
+      startSymptom: (r: SymptomRequest = {}) => setSymptomRequest(r),
+      closeSymptom: () => setSymptomRequest(null),
+      symptomsOpen,
+      setSymptomsOpen,
+      postponeTaskId,
+      setPostponeTaskId,
       toast,
       showToast,
       resetSelection,
     }),
-    [selection, select, detailOpen, hoverIndicator, hoverRegion, procedure, reportOpen, demoOpen, toast, showToast, resetSelection],
+    [selection, select, detailOpen, hoverIndicator, hoverRegion, procedure, reportOpen, demoOpen, routineOpen, symptomRequest, symptomsOpen, postponeTaskId, toast, showToast, resetSelection],
   );
   return <UiContext.Provider value={value}>{children}</UiContext.Provider>;
 }

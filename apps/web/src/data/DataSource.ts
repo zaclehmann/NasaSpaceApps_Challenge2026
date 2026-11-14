@@ -8,11 +8,13 @@ import type {
   ChartWindow,
   IndicatorKey,
   Mission,
+  NewSymptom,
   Reading,
   Report,
   ReportItem,
   RoutineSummary,
   ScenarioId,
+  Symptom,
   Urgency,
 } from "@missionvitals/shared";
 
@@ -21,6 +23,7 @@ export interface NewReport {
   note: string;
   items: ReportItem[];
   actions: string[];
+  symptoms?: string[];
 }
 
 export interface DataSource {
@@ -33,6 +36,12 @@ export interface DataSource {
   addReading(astronautId: string, indicator: IndicatorKey, reading: Omit<Reading, "t">, taskId?: string): Reading;
   getRoutine(astronautId: string): RoutineSummary;
   completeTask(astronautId: string, taskId: string): void;
+  /** Push a due task back to `minutes` from now (POSTPONE_MIN by default). */
+  postponeTask(astronautId: string, taskId: string, minutes?: number): void;
+  /** Every symptom this astronaut has logged, newest first, resolved ones included. */
+  getSymptoms(astronautId: string): Symptom[];
+  addSymptom(astronautId: string, symptom: NewSymptom): Symptom;
+  resolveSymptom(symptomId: string): void;
   getAlerts(astronautId: string): Alert[];
   acknowledgeAlert(alertId: string): void;
   logAction(alertId: string, kind: AlertActionKind, note?: string): void;

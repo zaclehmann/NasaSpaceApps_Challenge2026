@@ -44,3 +44,63 @@ After the first build, a strict UI audit found 58 problems. Zac asked for them t
 - **Row tints in light mode** stay as the spec's tokens, which are close to the page colour. Rows now rely on the mark, word and coloured value.
 - **Report thumbnails** still have no axis. They are a glance, and the full chart is one tap away.
 - **Eyes and inner ear** still have no reading. Bones and muscles now shows the exercise log task.
+
+## Indicator rule changes, 14 Nov 2026 (second round)
+
+Zac reviewed the indicator list and asked for one new indicator and five rule fixes. All ranges stay demo values.
+
+| Change | Rule now |
+| --- | --- |
+| Exercise added (indicator 9) | Minutes a day from the shirt's activity sensor, confirmed by the astronaut. In range 120 or more (demo target); Caution 60 to 119, or below 60 once; Warning below 60 on two days running. Region: Bones and muscles. Procedure HM-9, logged at 16:00. |
+| Watch margins | A fixed margin inside each limit, not a percentage: heart rate 6 bpm, SpO₂ 1 %, temperature 0.3 °C, systolic 10 and diastolic 5 mmHg, glucose 10 mg/dL, sleep 0.5 h, exercise 15 min, radiation 2 µGy/h. The trend is over the last hour for live readings and the last 3 days for entered ones. |
+| Temperature | A thermometer reading entered each morning (07:05, HM-5) and when unwell. The shirt measures skin temperature, which reads below the core-temperature ranges used here. Only heart rate and SpO₂ are live. |
+| Glucose | Judged by when it was taken: 70 to 110 mg/dL fasting or before a meal, 70 to 140 mg/dL after a meal. Caution and warning bands unchanged. |
+| Due, Overdue, No data | An entered measurement not taken yet is "Due" (plain text, no badge, never makes a region or the overall status worse) until an hour past its time, then Watch ("Overdue"), then No data if the day ends without it. Live sensors keep the 3x interval rule. |
+| Low blood pressure | Diastolic below 60 is Caution. |
+
+Knock-on changes: the routine has 7 tasks; scenario 2 logs a 124-minute exercise session before heart rate stays high; scenario 6 now silences heart rate and SpO₂ (the shirt), since temperature no longer comes from it. "Before a meal" glucose uses the fasting range; the rule did not say, and this is the cautious choice.
+
+## Anatomy views, 14 Nov 2026
+
+Zac asked for the body figure to show anatomy, with switchable Organs, Muscles and Skeleton views, a 3D-ish look, and relevant stats in each. `ui.md` sections 2 and 6.1 are updated to match.
+
+- **3D-ish:** SVG lighting filters (blur of the shape's own outline, diffuse and specular light from the upper left) give the body and each organ, bone and muscle soft volume. No WebGL and no model file, so it stays offline and small.
+- **Same nine regions in every view.** Each view decides how a region is drawn: as anatomy (an organ, a muscle group, a bone) or as a cut of the outline. Labels, readings and the detail panel are the same in all views; only the bones and muscles label is renamed ("Muscles", "Bones").
+- **Stats per view:** the region labels carry the readings, and a line under the view switch gives the ones that matter for that view.
+- **Not in scope:** rotating the figure. A real 3D model would need a licensed human mesh and a 3D library.
+
+## Body parts and symptoms, 14 Nov 2026
+
+Zac asked for each anatomy view to show its own parts and let him record problems there (a sore knee, a rib, a stiff back). He chose: tap a named part, front and back views, symptoms change status with demo rules, and privacy like mood.
+
+- **Parts:** 78 named parts in `packages/shared/src/bodyParts.ts`, each in one view: organs (head, eyes, ears, throat, lungs, heart, liver, stomach, intestines, bladder, abdomen, kidneys), muscles (neck, shoulders, chest, arms, abdomen, back, glutes, thighs, hamstrings, calves) and skeleton (skull, spine, collarbones, shoulder blades, ribs, every limb bone and joint). Left and right are the astronaut's own.
+- **Front and back:** a switch beside the view tabs. The back shows back muscles, shoulder blades, spine and kidneys.
+- **Picking a part:** tap it on the figure (its name shows on hover), or choose it from the "Choose a body part" list, which is the keyboard and screen reader path.
+- **Part page:** active symptoms with severity and the demo rule that set their status, what to do, related readings, earlier symptoms, and Log symptom.
+- **On the figure:** a part with an active symptom is tinted and edged in its status colour with a small badge. The body-system label shows the status too. Regions are still tinted from readings alone, so a sore knee marks the knee, not every limb.
+- **Status:** `HealthView.parts` holds each part's status; a region's status is the worst of its readings and its parts' symptoms, and the overall status includes symptoms.
+- The symptom form, the logged-symptoms page and the symptom status rules were built in the other session (`layout/Symptoms.tsx`, `shared/symptoms.ts`).
+
+## Anatomy redraw, 14 Nov 2026
+
+Zac asked for the organs, skeleton and muscles to be drawn accurately. `bodyAnatomy.ts` was redrawn from standard surface anatomy:
+
+- **Organs:** heart two thirds to the body's left with the apex down and left, plus aorta, pulmonary trunk and vena cava; right lung with three lobes, left with two and the cardiac notch; windpipe dividing at the sternal angle; liver under the right dome of the diaphragm with the gallbladder; J-shaped stomach and spleen on the left; colon up the right, across and down the left, with the appendix; small intestine; bladder; lymph nodes and thymus. Back: cerebellum, spinal cord ending near L1 to L2, and kidneys from T12 to L3 with the left one higher.
+- **Skeleton:** skull, jaw, 7 cervical, 12 thoracic and 5 lumbar vertebrae, sacrum, 12 pairs of ribs (7 true, 3 joined by cartilage to the costal margin, 2 floating), three-part sternum, clavicles, shoulder blades, pelvis with hip sockets, and humerus, radius (thumb side), ulna, hand, femur, kneecap, tibia, fibula (outer side) and foot.
+- **Muscles:** named surface muscles, front and back, drawn as tapered bellies.
+- **Levels:** organs and bones are placed against each other (for example the heart behind the sternum between ribs 2 and 6).
+- **Limit:** these are hand-built schematic diagrams, checked against general anatomical knowledge, not traced from a medical atlas and not reviewed by a clinician. They show where things are. Nothing in the app computes a status or advice from the drawing.
+
+## Right panel restructure, 14 Nov 2026
+
+The right panel had three detail views (a reading, a body region, a body part) with different layouts, and the reading view was one and a half screens tall. Zac chose one shared layout (`panel/PanelShell.tsx`) for all of them:
+
+- **Header, always in view:** a back link to where the item belongs (Heart rate shows "Heart and circulation"; Left knee shows "Bones and muscles"), the name, its status, one main action (Acknowledge for an unacknowledged alert, otherwise Measure or Log symptom) and a one-line summary.
+- **Tabs:** Now (what to do, when to escalate, facts, and the other readings and symptoms in the same body system), Trend (the chart; History for a body part), About (why it changes in space, how to measure, keep healthy, sources). An item always opens on Now.
+- **Footer, always in view:** Send report and Log action.
+- **Report:** opens as a step inside the panel (or the tablet sheet, or the phone page), with a back link to what was open, instead of a sheet over the figure. Other pages still use the sheet.
+- Scroll areas are `position: relative`, so screen-reader-only text cannot stretch the page.
+
+## Part labels per view, 14 Nov 2026
+
+The labels beside the figure now depend on the view. Organs keeps the nine body-system labels, which carry the readings. Muscles and Skeleton label every named part on the side shown (for example "Right forearm bones", "Left knee", "Lower back"). Labels sit next to their part: on the front view the body's right is on the viewer's left, on the back view it is on the viewer's right. A part with a symptom shows its status under the name. Tapping a label opens the part's page, where the symptom is logged. On narrow screens the list under the figure shows the same parts.

@@ -1,6 +1,7 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // A small trend line for a list row. The vertical scale includes the demo limits,
 // so the line's height shows how close the value is to a limit, not just its wiggle.
+import { useLayoutEffect, useRef, useState } from "react";
 import type { IndicatorDef, Status } from "@missionvitals/shared";
 import type { SparkPoint } from "../../data/health";
 import { STATUS_VAR } from "../status/statusStyles";
@@ -53,5 +54,25 @@ export function Sparkline({ points, def, status, now, width = 56, height = 20 }:
       ))}
       {status !== "nodata" && <circle cx={last[0]} cy={last[1]} r="2" fill={flagged ? STATUS_VAR[lastLevel] : "var(--foreground)"} />}
     </svg>
+  );
+}
+
+/** The same trend line, as wide as its container (drawn at the measured width, so the end dot stays round). */
+export function SparklineFill(props: Omit<Props, "width">) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(Math.floor(el.getBoundingClientRect().width));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <span ref={ref} className="block w-full" style={{ height: props.height ?? 20 }}>
+      {width > 0 && <Sparkline {...props} width={width} />}
+    </span>
   );
 }

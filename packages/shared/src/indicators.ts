@@ -1,6 +1,6 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Indicator catalogue. Every range here is a DEMO value for this prototype, not a NASA limit.
-import type { DeviceId, IndicatorKey, IndicatorSource } from "./types";
+import type { ChartWindow, DeviceId, IndicatorKey, IndicatorSource } from "./types";
 import type { RegionId } from "./regions";
 
 export type ChartForm = "line" | "dots" | "bp" | "bars";
@@ -13,8 +13,12 @@ export interface IndicatorDef {
   /** Short name for callouts on the body figure. */
   short: string;
   unit: string;
+  /** Unit for the demo thresholds table, where it differs from the display unit. */
+  tableUnit?: string;
   source: IndicatorSource;
   device: DeviceId;
+  /** Where a reading comes from, in words, for the detail panel. */
+  sourceText: string;
   decimals: number;
   /** Seconds between readings. No reading for 3x this means No data (live sources). */
   expectedIntervalSec: number;
@@ -39,6 +43,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     unit: "bpm",
     source: "live",
     device: "shirt",
+    sourceText: "Shirt",
     decimals: 0,
     expectedIntervalSec: 5,
     region: "heart",
@@ -57,6 +62,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     unit: "%",
     source: "live",
     device: "shirt",
+    sourceText: "Shirt",
     decimals: 0,
     expectedIntervalSec: 5,
     region: "lungs",
@@ -72,13 +78,16 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     name: "Temperature",
     phrase: "temperature",
     unit: "°C",
-    source: "live",
-    device: "shirt",
+    // The shirt measures skin temperature, which reads below core temperature, so these
+    // core-temperature ranges need a thermometer reading, entered each morning and when unwell.
+    source: "entered",
+    device: "thermometer",
+    sourceText: "Thermometer, entered by you",
     decimals: 1,
-    expectedIntervalSec: 5,
+    expectedIntervalSec: 24 * 3600,
     region: "immune",
     procedureId: "HM-5",
-    chart: "line",
+    chart: "dots",
     low: 36.0,
     high: 37.5,
     rangeText: "36.0 to 37.5 °C",
@@ -92,6 +101,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     unit: "mmHg",
     source: "entered",
     device: "cuff",
+    sourceText: "BP cuff, entered by you",
     decimals: 0,
     expectedIntervalSec: 12 * 3600,
     region: "heart",
@@ -99,10 +109,10 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     chart: "bp",
     low: 90,
     high: 135,
-    rangeText: "systolic 90 to 135 and diastolic 85 or less, in mmHg",
+    rangeText: "systolic 90 to 135 and diastolic 60 to 85, in mmHg",
     table: {
-      inRange: "Systolic 90 to 135 and diastolic 85 or less",
-      caution: "Systolic 136 to 159 or 80 to 89, or diastolic 86 to 99",
+      inRange: "Systolic 90 to 135 and diastolic 60 to 85",
+      caution: "Systolic 136 to 159 or 80 to 89, or diastolic 86 to 99 or below 60",
       warning: "Systolic 160 or more or below 80, or diastolic 100 or more",
     },
   },
@@ -114,6 +124,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     unit: "mg/dL",
     source: "entered",
     device: "glucometer",
+    sourceText: "Glucometer, entered by you",
     decimals: 0,
     expectedIntervalSec: 24 * 3600,
     region: "gut",
@@ -122,7 +133,11 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     low: 70,
     high: 110,
     rangeText: "70 to 110 mg/dL fasting",
-    table: { inRange: "70 to 110, fasting", caution: "55 to 69, or 111 to 180", warning: "Below 55, or above 180" },
+    table: {
+      inRange: "70 to 110 fasting or before a meal; 70 to 140 after a meal",
+      caution: "55 to 69, or above the in-range band up to 180",
+      warning: "Below 55, or above 180",
+    },
   },
   sleep: {
     key: "sleep",
@@ -132,6 +147,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     unit: "h",
     source: "entered",
     device: "self",
+    sourceText: "Entered by you",
     decimals: 1,
     expectedIntervalSec: 24 * 3600,
     region: "brain",
@@ -141,14 +157,35 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     rangeText: "6 hours or more",
     table: { inRange: "6 or more", caution: "5.0 to 5.9", warning: "Below 5" },
   },
+  exercise: {
+    key: "exercise",
+    short: "Exercise",
+    name: "Exercise",
+    phrase: "exercise",
+    unit: "min",
+    tableUnit: "min/day",
+    source: "entered",
+    device: "shirt",
+    sourceText: "Smart shirt, counted through the day",
+    decimals: 0,
+    expectedIntervalSec: 24 * 3600,
+    region: "musculoskeletal",
+    procedureId: "HM-9",
+    chart: "bars",
+    low: 120,
+    rangeText: "at least 120 min a day",
+    table: { inRange: "120 or more (target)", caution: "60 to 119, or below 60 once", warning: "Below 60 on two days running" },
+  },
   mood: {
     key: "mood",
     short: "Mood",
     name: "Mood",
     phrase: "mood",
     unit: "of 5",
+    tableUnit: "1 to 5",
     source: "entered",
     device: "self",
+    sourceText: "Entered by you, private",
     decimals: 0,
     expectedIntervalSec: 24 * 3600,
     region: "brain",
@@ -166,6 +203,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
     unit: "µGy/h",
     source: "habitat",
     device: "dosimeter",
+    sourceText: "Habitat dosimeter",
     decimals: 1,
     expectedIntervalSec: 60,
     region: "whole",
@@ -179,10 +217,10 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
 
 export const INDICATOR_KEYS = Object.keys(INDICATORS) as IndicatorKey[];
 
-/** List groups in display order (ui.md 5.2). */
+/** List groups in display order (ui.md 5.2). Only heart rate and SpO₂ come live from the shirt. */
 export const INDICATOR_GROUPS: { source: IndicatorSource; title: string; keys: IndicatorKey[] }[] = [
-  { source: "live", title: "Live from your shirt", keys: ["hr", "spo2", "temp"] },
-  { source: "entered", title: "Entered by you today", keys: ["bp", "glucose", "sleep", "mood"] },
+  { source: "live", title: "Live from your shirt", keys: ["hr", "spo2", "exercise"] },
+  { source: "entered", title: "Entered by you today", keys: ["bp", "temp", "glucose", "sleep", "mood"] },
   { source: "habitat", title: "Habitat", keys: ["radiation"] },
 ];
 
@@ -201,15 +239,16 @@ export function formatValue(key: IndicatorKey, value: number, value2?: number): 
 export const DEVICE_NAMES: Record<DeviceId, string> = {
   shirt: "Shirt",
   cuff: "BP cuff",
+  thermometer: "Thermometer",
   glucometer: "Glucometer",
   dosimeter: "Dosimeter",
   self: "Self-report",
 };
 
-export const WINDOW_SEC: Record<import("./types").ChartWindow, number> = { "1h": 3600, "24h": 86400, "7d": 7 * 86400, "14d": 14 * 86400, "30d": 30 * 86400 };
+export const WINDOW_SEC: Record<ChartWindow, number> = { "1h": 3600, "24h": 86400, "7d": 7 * 86400, "14d": 14 * 86400, "30d": 30 * 86400 };
 
 /** Seconds between samples a data source returns for a live or habitat indicator in each chart window. */
-export function sampleStepSec(key: IndicatorKey, window: import("./types").ChartWindow): number {
+export function sampleStepSec(key: IndicatorKey, window: ChartWindow): number {
   const habitat = INDICATORS[key].source === "habitat";
   switch (window) {
     case "1h":

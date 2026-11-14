@@ -33,7 +33,8 @@ export interface IndicatorGuidance {
   howToMeasure: { procedureId: string; equipment: string; steps: string[] };
   whySpace: { text: string[]; hazards: Hazard[]; risk: string; riskUrl: string };
   keepHealthy: string[];
-  whatToDo: Record<Status, string[]>;
+  /** Steps per status. "Due" uses the No data steps: take today's measurement. */
+  whatToDo: Record<Exclude<Status, "due">, string[]>;
   escalation: Escalation;
   sources: Source[];
 }
@@ -76,7 +77,7 @@ export const GUIDANCE: Record<IndicatorKey, IndicatorGuidance> = {
       caution: [
         "Stop and rest for 5 minutes.",
         "Check the shirt sits snug across your chest.",
-        "Re-measure. If it is still outside the demo range, contact the crew medical officer.",
+        "Re-measure. If it is still outside your range, contact the crew medical officer.",
       ],
       warning: ["Stop what you are doing and rest.", "Contact the crew medical officer now.", "Follow the mission medical procedure.", "Send a report to the flight surgeon."],
       nodata: SHIRT_NODATA,
@@ -107,7 +108,7 @@ export const GUIDANCE: Record<IndicatorKey, IndicatorGuidance> = {
       caution: [
         "Stop and rest. Breathe slowly and normally.",
         "Check the sensor sits flat against your skin.",
-        "Re-measure after 2 minutes. If it is still below the demo range, contact the crew medical officer.",
+        "Re-measure after 2 minutes. If it is still below your range, contact the crew medical officer.",
       ],
       warning: [
         "Stop what you are doing and stay still.",
@@ -121,11 +122,11 @@ export const GUIDANCE: Record<IndicatorKey, IndicatorGuidance> = {
     sources: [SOURCES.risks, SOURCES.hazards, SOURCES.bioMonitor],
   },
   temp: {
-    whatItIs: "Temperature here is your skin temperature from the shirt, used as a simple fever check.",
+    whatItIs: "Temperature is your body temperature from the thermometer, used as a simple fever check. Take it each morning and whenever you feel unwell.",
     howToMeasure: {
       procedureId: "HM-5",
-      equipment: "Wearable shirt",
-      steps: ["Put on the shirt so the sensors touch your skin.", "Wait 5 minutes for the reading to settle.", "Avoid measuring straight after exercise."],
+      equipment: "Thermometer",
+      steps: ["Wait 15 minutes after a hot drink, a meal or exercise.", "Take the reading with the crew thermometer as trained.", "Enter the value shown."],
     },
     whySpace: {
       text: [
@@ -135,20 +136,20 @@ export const GUIDANCE: Record<IndicatorKey, IndicatorGuidance> = {
       hazards: ["Hostile/closed environments"],
       ...risk("Altered Immune System Responses"),
     },
-    keepHealthy: ["Wash your hands and wipe shared surfaces.", "Keep to the sleep schedule.", "Eat your planned meals."],
+    keepHealthy: ["Wash your hands and wipe shared surfaces.", "Keep to the sleep schedule.", "Take your temperature whenever you feel unwell."],
     whatToDo: {
       ok: OK_STEPS,
-      watch: ["Rest for 10 minutes away from warm equipment.", "Drink some water.", "Check again in 30 minutes."],
+      watch: ["Rest and drink some water.", "Take your temperature again this evening."],
       caution: [
         "Rest and drink water.",
-        "Check the shirt sensor sits flat against your skin.",
-        "Re-measure after 15 minutes. If it is still outside the demo range, contact the crew medical officer.",
+        "Re-measure after 15 minutes.",
+        "If it is still outside your range, contact the crew medical officer.",
       ],
       warning: ["Stop work and rest.", "Contact the crew medical officer now.", "Follow the mission medical procedure.", "Send a report to the flight surgeon."],
-      nodata: SHIRT_NODATA,
+      nodata: ["Take today's temperature with the thermometer.", "Use the guided procedure HM-5."],
     },
     escalation: ESCALATION,
-    sources: [SOURCES.risks, SOURCES.hazards, SOURCES.bioMonitor],
+    sources: [SOURCES.risks, SOURCES.hazards],
   },
   bp: {
     whatItIs: "Blood pressure is the force of blood on your artery walls, given as two numbers: systolic over diastolic.",
@@ -176,7 +177,7 @@ export const GUIDANCE: Record<IndicatorKey, IndicatorGuidance> = {
       caution: [
         "Rest quietly for 5 minutes.",
         "Check the cuff is on your upper arm at heart level.",
-        "Re-measure. If it is still outside the demo range, contact the crew medical officer.",
+        "Re-measure. If it is still outside your range, contact the crew medical officer.",
       ],
       warning: ["Stop and rest.", "Re-measure once to confirm.", "Contact the crew medical officer now.", "Send a report to the flight surgeon."],
       nodata: ["Take today's blood pressure reading.", "Use the guided procedure HM-3."],
@@ -207,7 +208,7 @@ export const GUIDANCE: Record<IndicatorKey, IndicatorGuidance> = {
       caution: [
         "Note when you last ate.",
         "Wash and dry your hands, then re-measure with a new strip.",
-        "If it is still outside the demo range, contact the crew medical officer.",
+        "If it is still outside your range, contact the crew medical officer.",
       ],
       warning: ["Stop work and stay with a crewmate.", "Contact the crew medical officer now.", "Follow the mission medical procedure.", "Send a report to the flight surgeon."],
       nodata: ["Take today's blood glucose reading.", "Use the guided procedure HM-4."],
@@ -298,13 +299,44 @@ export const GUIDANCE: Record<IndicatorKey, IndicatorGuidance> = {
       caution: [
         "Tell the commander. This reading is the same for the whole crew.",
         "Follow the mission procedure for a radiation event.",
-        "Check the reading every 15 minutes until it is back in the demo range.",
+        "Check the reading every 15 minutes until it is back in your range.",
       ],
       warning: ["Follow the mission procedure for a radiation event now.", "Stay with the crew and await the commander's instructions.", "Send a report to Earth."],
       nodata: ["Check the dosimeter is powered and connected.", "Report a silent dosimeter to the commander."],
     },
     escalation: { self: "Check the reading and review the procedure.", cmo: "The reading stays out of range. Tell the commander and the crew medical officer.", surgeon: "Any Warning, or a Caution that lasts for hours." },
     sources: [SOURCES.hazards, SOURCES.risks, SOURCES.radiation],
+  },
+  exercise: {
+    whatItIs: "Exercise is the minutes of planned exercise you did today, counted by the shirt's activity sensor and confirmed by you.",
+    howToMeasure: {
+      procedureId: "HM-9",
+      equipment: "Exercise devices and the wearable shirt",
+      steps: ["Wear the shirt for today's planned session.", "After the session, check the minutes the shirt counted.", "Correct the total if the shirt missed part of a session, then save."],
+    },
+    whySpace: {
+      text: [
+        "NASA says bones become more brittle without gravity, which raises the chance of fractures.",
+        "NASA also says all astronauts exercise to counter losses in bone density, muscle strength, and heart and blood vessel performance.",
+        "This prototype cannot measure bone or muscle directly, so it tracks the exercise that protects them.",
+      ],
+      hazards: ["Gravity fields"],
+      ...risk("Reduced Cardiorespiratory and Musculoskeletal Fitness"),
+    },
+    keepHealthy: ["Complete today's planned resistance and aerobic sessions.", "Keep the shirt on during exercise so it counts every session.", "Eat your planned meals."],
+    whatToDo: {
+      ok: OK_STEPS,
+      watch: ["Keep today's planned session in the schedule.", "Check the shirt counted every session."],
+      caution: [
+        "Fit in the rest of today's session if the schedule allows.",
+        "Tell the commander if the schedule leaves no time to exercise.",
+        "If you are under the target again tomorrow, talk with the crew medical officer.",
+      ],
+      warning: ["Tell the commander and ask for exercise time in the schedule.", "Talk with the crew medical officer today.", "Send a report to the flight surgeon."],
+      nodata: ["Log today's exercise after your session.", "Use the guided procedure HM-9."],
+    },
+    escalation: { self: "Make up the time today if you can.", cmo: "Under the target two days in a row.", surgeon: "Any Warning, or a shortfall that repeats over a week." },
+    sources: [SOURCES.risks, SOURCES.hazards, SOURCES.bioMonitor],
   },
 };
 
@@ -370,7 +402,7 @@ export const REGION_GUIDANCE: Record<RegionId, RegionGuidance> = {
     riskSentence: "NASA says bones become more brittle without gravity, and that all astronauts exercise to counter losses in bone density and muscle strength.",
     hazards: ["Gravity fields"],
     keepHealthy: ["Complete today's resistance exercise session.", "Log each session in the exercise log.", "Eat your planned meals."],
-    relatedCheck: "Exercise log: 16:00 in today's routine.",
+    relatedCheck: "Exercise minutes stand in for bone and muscle health. This prototype doesn't measure bone or muscle directly.",
   },
   whole: {
     whatItDoes: "Radiation reaches your whole body, and the whole crew, at once.",
@@ -379,3 +411,9 @@ export const REGION_GUIDANCE: Record<RegionId, RegionGuidance> = {
     keepHealthy: ["Know the mission procedure for a radiation event.", "Check the dosimeter status each day.", "Report a silent dosimeter."],
   },
 };
+
+/** The steps to show for a status. "Due" uses the No data steps: take today's measurement. */
+export function whatToDoFor(key: IndicatorKey, status: Status): string[] {
+  const steps = GUIDANCE[key].whatToDo;
+  return status === "due" ? steps.nodata : steps[status];
+}

@@ -12,8 +12,8 @@ import { IndicatorChart } from "../components/charts/IndicatorChart";
 import { IndicatorList } from "../components/indicators/IndicatorList";
 import { AppShell, useCurrentHealth } from "../components/layout/AppShell";
 import { usePhoneTab } from "../components/layout/BottomTabs";
-import { RoutineList } from "../components/layout/RoutineList";
 import { DetailBody, selectionTitle } from "../components/panel/DetailPanel";
+import { ReportPanel } from "../components/report/ReportSheet";
 import { Dialog } from "../components/ui/Dialog";
 import { Sheet } from "../components/ui/Sheet";
 import { Tabs } from "../components/ui/Tabs";
@@ -29,7 +29,8 @@ function FigureColumn({ view, fill }: { view: HealthView; fill: boolean }) {
       <div className={fill ? "flex min-h-0 flex-1 flex-col p-4" : "px-4 py-2"}>
         <BodyStage view={view} fill={fill} />
       </div>
-      <BodyFooter view={view} />
+      {/* Tablet and desktop show devices and the status key in the status bar instead. */}
+      {!fill && <BodyFooter view={view} />}
     </section>
   );
 }
@@ -126,9 +127,16 @@ function Content({ view }: { view: HealthView }) {
   const layout = useLayout();
   const tab = usePhoneTab();
   const wide = useMediaQuery("(min-width: 1140px)");
-  const { detailOpen, closeDetail } = useUi();
+  const { detailOpen, closeDetail, reportOpen, setReportOpen } = useUi();
   const selection = useSelection(view);
-  const title = selectionTitle(selection);
+  const title = reportOpen ? "Report to the flight surgeon" : selectionTitle(selection);
+  // The report opens as a step inside the panel (or the tablet sheet, or the phone page).
+  const panel = reportOpen ? <ReportPanel view={view} /> : <DetailBody view={view} />;
+  const panelOpen = detailOpen || reportOpen;
+  const closePanel = () => {
+    setReportOpen(false);
+    closeDetail();
+  };
 
   if (layout === "phone") {
     return (
@@ -137,42 +145,36 @@ function Content({ view }: { view: HealthView }) {
           <>
             <h1 className="sr-only">Today</h1>
             <IndicatorList view={view} />
-            <div className="mt-2 border-t border-border">
-              <RoutineList view={view} />
-            </div>
           </>
         )}
         {tab === "body" && <FigureColumn view={view} fill={false} />}
         {tab === "trends" && <Trends view={view} />}
         {tab === "more" && <More />}
-        <Dialog open={detailOpen} onOpenChange={(o) => !o && closeDetail()} title={title} variant="page">
-          <DetailBody view={view} />
+        <Dialog open={panelOpen} onOpenChange={(o) => !o && closePanel()} title={title} variant="page">
+          {panel}
         </Dialog>
       </main>
     );
   }
 
   // With enough width the open sheet docks beside the figure instead of covering it.
-  const docked = layout === "tablet" && detailOpen && wide;
+  const docked = layout === "tablet" && panelOpen && wide;
   return (
     <>
       <main className={clsx("grid min-h-0 flex-1 grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_400px]", docked && "pr-[440px]")}>
-        <div className="min-h-0 overflow-y-auto border-r border-border">
+        <div className="relative min-h-0 overflow-y-auto border-r border-border">
           <IndicatorList view={view} />
-          <div className="mt-3 border-t border-border">
-            <RoutineList view={view} />
-          </div>
         </div>
         <FigureColumn view={view} fill />
         {layout === "desktop" && (
-          <aside aria-label="Details" className="min-h-0 overflow-y-auto border-l border-border px-5 py-4">
-            <DetailBody view={view} />
+          <aside aria-label="Details" className="relative flex min-h-0 flex-col border-l border-border px-5 pt-4 pb-3">
+            {panel}
           </aside>
         )}
       </main>
       {layout === "tablet" && (
-        <Sheet open={detailOpen} onOpenChange={(o) => !o && closeDetail()} title="Details" description={title} scrim={false}>
-          <DetailBody view={view} />
+        <Sheet open={panelOpen} onOpenChange={(o) => !o && closePanel()} title="Details" description={title} scrim={false}>
+          {panel}
         </Sheet>
       )}
     </>

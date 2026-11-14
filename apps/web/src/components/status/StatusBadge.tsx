@@ -13,7 +13,7 @@ const OCTAGON = (() => {
   return pts.join(" ");
 })();
 
-/** The badge drawn in a 16 x 16 box. Use inside any SVG. */
+/** The badge drawn in a 16 x 16 box. Use inside any SVG. "Due" is neutral and has no badge. */
 export function BadgeShape({ status }: { status: Status }) {
   const glyph = "var(--glyph-on-status)";
   const g = { strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
@@ -49,6 +49,8 @@ export function BadgeShape({ status }: { status: Status }) {
           <circle cx="8" cy="11.4" r="1.05" fill={glyph} />
         </g>
       );
+    case "due":
+      return null;
     case "nodata":
       return (
         <g>

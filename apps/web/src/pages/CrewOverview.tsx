@@ -11,7 +11,7 @@ import { STATUS_TEXT } from "../components/status/statusStyles";
 import { useAstronaut, useCrew, useCrewHealth, useData, useMission } from "../data/DataProvider";
 import type { HealthView } from "../data/health";
 
-const COLUMNS: IndicatorKey[] = ["hr", "bp", "spo2", "temp", "sleep", "mood"];
+const COLUMNS: IndicatorKey[] = ["hr", "spo2", "bp", "temp", "sleep", "exercise", "mood"];
 
 function Cell({ view, k, canSeeMood }: { view: HealthView; k: IndicatorKey; canSeeMood: boolean }) {
   const s = view.indicators[k];
@@ -23,7 +23,7 @@ function Cell({ view, k, canSeeMood }: { view: HealthView; k: IndicatorKey; canS
       </span>
     );
   }
-  if (!s.valueText) return <span className="text-muted-foreground">{s.ev.reason === "silent" ? "No data" : "Not taken"}</span>;
+  if (!s.valueText) return <span className="text-muted-foreground">{s.status === "due" ? "Due" : s.ev.reason === "silent" ? "No data" : "Not taken"}</span>;
   const quiet = s.status === "ok";
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -68,7 +68,7 @@ function Content() {
           <table className="w-full type-small">
             <thead className="bg-muted type-label text-muted-foreground">
               <tr>
-                {["Name", "Overall", ...COLUMNS.map((k) => INDICATORS[k].name), "Routine today", "Last check-in"].map((h) => (
+                {["Name", "Overall", ...COLUMNS.map((k) => INDICATORS[k].name), "Symptoms", "Routine today", "Last check-in"].map((h) => (
                   <th key={h} scope="col" className="px-2.5 py-2.5 text-left font-medium whitespace-nowrap">
                     {h}
                   </th>
@@ -90,6 +90,9 @@ function Content() {
                       <Cell view={v} k={k} canSeeMood={canSee(v)} />
                     </td>
                   ))}
+                  <td className="px-2.5 py-2 whitespace-nowrap">
+                    <SymptomCell view={v} />
+                  </td>
                   <td className="px-2.5 py-2 whitespace-nowrap">
                     {v.routine.done} of {v.routine.total} done
                   </td>
@@ -118,6 +121,12 @@ function Content() {
                     </dd>
                   </div>
                 ))}
+                <div>
+                  <dt className="type-label text-muted-foreground">Symptoms</dt>
+                  <dd>
+                    <SymptomCell view={v} />
+                  </dd>
+                </div>
               </dl>
             </li>
           ))}
@@ -177,6 +186,11 @@ function Content() {
       </section>
     </main>
   );
+}
+
+/** Symptoms are private like mood: the crew sees only that one is logged, never what or where. */
+function SymptomCell({ view }: { view: HealthView }) {
+  return Object.keys(view.parts).length > 0 ? <span className="font-medium">Symptom logged</span> : <span className="text-subtle-foreground">None</span>;
 }
 
 export default function CrewOverview() {

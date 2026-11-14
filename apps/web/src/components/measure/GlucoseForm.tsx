@@ -27,7 +27,7 @@ export function GlucoseForm({ formId, onSave }: { formId: string; onSave: (r: Ne
     >
       <NumericInput label="Blood glucose" unit="mg/dL" value={value} onChange={setValue} error={error} autoFocus />
       <Scale legend="When did you take it?" labels={TIMING_LABELS} value={timing} onChange={setTiming} />
-      <p className="type-caption text-subtle-foreground">The demo range of 70 to 110 mg/dL is for fasting readings.</p>
+      <p className="type-caption text-subtle-foreground">Demo range: 70 to 110 mg/dL fasting or before a meal, 70 to 140 mg/dL after a meal.</p>
     </form>
   );
 }

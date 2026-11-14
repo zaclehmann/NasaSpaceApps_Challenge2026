@@ -2,7 +2,7 @@
 // Guided measurement (ui.md 5.5): Prepare, Enter, Result. Written like a flight procedure.
 // The result step offers the next routine task that is due, so the morning checks run as one flow.
 import { useId, useState } from "react";
-import { GUIDANCE, INDICATORS, ROUTINE, statusLine, type IndicatorKey } from "@missionvitals/shared";
+import { GUIDANCE, INDICATORS, statusLine, whatToDoFor } from "@missionvitals/shared";
 import { useSource } from "../../data/DataProvider";
 import type { HealthView } from "../../data/health";
 import { useUi, type ProcedureRequest } from "../../state/ui";
@@ -16,13 +16,6 @@ import { BloodPressureForm, type NewReading } from "./BloodPressureForm";
 import { GlucoseForm, SimpleValueForm } from "./GlucoseForm";
 import { MoodForm } from "./MoodForm";
 
-const EXERCISE = {
-  name: "Exercise log",
-  procedureId: "HM-9",
-  equipment: "Exercise device",
-  steps: ["Complete today's planned session.", "Note how long you exercised.", "Wipe down the equipment and stow it."],
-};
-
 const STEP_NAMES = ["Prepare", "Enter", "Result"];
 
 function Body({ request, view }: { request: ProcedureRequest; view: HealthView }) {
@@ -30,23 +23,17 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
   const { closeProcedure, startProcedure, showToast, setReportOpen } = useUi();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const formId = useId();
-  const isExercise = request.kind === "exercise";
-  const key = request.kind as IndicatorKey;
-  const proc = isExercise ? EXERCISE : { name: INDICATORS[key].name, ...GUIDANCE[key].howToMeasure };
-  const Icon = INDICATOR_ICON[request.kind];
-  const state = isExercise ? undefined : view.indicators[key];
+  const key = request.kind;
+  const isExercise = key === "exercise";
+  const proc = { name: INDICATORS[key].name, ...GUIDANCE[key].howToMeasure };
+  const Icon = INDICATOR_ICON[key];
+  const state = view.indicators[key];
   const flagged = state?.status === "caution" || state?.status === "warning";
   const next = step === 3 ? view.routine.entries.find((e) => e.state.kind === "overdue" || e.state.kind === "due") : undefined;
 
   const save = (r: NewReading) => {
-    if (isExercise) {
-      const task = request.taskId ?? ROUTINE.find((t) => t.kind === "exercise")?.id;
-      if (task) source.completeTask(view.astronaut.id, task);
-      showToast("Session logged");
-    } else {
-      source.addReading(view.astronaut.id, key, r, request.taskId);
-      showToast("Reading saved");
-    }
+    source.addReading(view.astronaut.id, key, r, request.taskId);
+    showToast(isExercise ? "Exercise confirmed" : "Reading saved");
     setStep(3);
   };
 
@@ -59,7 +46,7 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
       <>
         <Button onClick={() => setStep(1)}>Back</Button>
         <Button variant="primary" type="submit" form={formId}>
-          {isExercise ? "Log session" : "Save reading"}
+          {isExercise ? "Log exercise" : "Save reading"}
         </Button>
       </>
     ) : (
@@ -97,13 +84,14 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
           {request.kind === "bp" && <BloodPressureForm formId={formId} onSave={save} />}
           {request.kind === "glucose" && <GlucoseForm formId={formId} onSave={save} />}
           {request.kind === "mood" && <MoodForm formId={formId} onSave={save} />}
+          {request.kind === "temp" && <SimpleValueForm formId={formId} label="Temperature" unit="°C" min={30} max={43} device="thermometer" onSave={save} />}
           {request.kind === "sleep" && <SimpleValueForm formId={formId} label="Hours slept" unit="h" min={0} max={16} device="self" onSave={save} />}
-          {isExercise && <SimpleValueForm formId={formId} label="Session length" unit="min" min={1} max={240} device="self" onSave={save} />}
+          {isExercise && <SimpleValueForm formId={formId} label="Exercise today, from the shirt" unit="min" min={0} max={300} device="shirt" onSave={save} />}
         </>
       )}
       {step === 3 && (
         <div className="space-y-4">
-          {state ? (
+          {state.valueText ? (
             <>
               <div>
                 <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
@@ -117,11 +105,11 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
               </div>
               <div>
                 <h3 className="mb-1.5 type-small font-semibold">What to do now</h3>
-                <Steps steps={GUIDANCE[key].whatToDo[state.status]} />
+                <Steps steps={whatToDoFor(key, state.status)} />
               </div>
             </>
           ) : (
-            <p className="type-body">Session logged. Today's routine is updated.</p>
+            <p className="type-body">Saved. Today's routine is updated.</p>
           )}
           <p className="border-t border-border pt-3 type-small text-muted-foreground">
             {next ? (

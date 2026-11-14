@@ -18,6 +18,7 @@ export const INDICATOR_ICON: Record<RoutineKind, LucideIcon> = {
 export const DEVICE_ICON: Record<Exclude<DeviceId, "self">, LucideIcon> = {
   shirt: Shirt,
   cuff: Activity,
+  thermometer: Thermometer,
   glucometer: Droplet,
   dosimeter: Radiation,
 };

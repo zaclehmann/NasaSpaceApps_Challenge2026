@@ -29,14 +29,18 @@ function Content() {
 
       <H2>Data sources</H2>
       <P>
-        Three kinds of reading, grouped the same way on the main screen: live from a wearable shirt (heart rate, SpO₂, temperature), entered by the astronaut (blood pressure, blood glucose, sleep, mood) and from the habitat
-        (radiation dose rate, the same for the whole crew).
+        Three kinds of reading, grouped the same way on the main screen: live from a wearable shirt (heart rate and SpO₂), entered by the astronaut (blood pressure, temperature, blood glucose, sleep, exercise and
+        mood) and from the habitat (radiation dose rate, the same for the whole crew).
       </P>
       <P>
         The shirt is modelled on the Canadian Space Agency's <A href={SOURCES.bioMonitor.url}>Bio-Monitor</A>, a smart shirt and headband that measures heart activity, blood pressure, breathing, skin temperature, blood oxygen
         and physical activity.
       </P>
-      <Todo>one paragraph on why these eight indicators were chosen for the challenge brief.</Todo>
+      <P>
+        The Bio-Monitor measures skin temperature, which reads lower than core body temperature. The temperature ranges here are for core temperature, so temperature is a thermometer reading, entered each morning and
+        whenever the astronaut feels unwell. Exercise minutes come from the shirt's activity sensor and are confirmed by the astronaut.
+      </P>
+      <Todo>one paragraph on why these nine indicators were chosen for the challenge brief.</Todo>
 
       <H2>Simulation</H2>
       <P>
@@ -59,22 +63,28 @@ function Content() {
             <StatusBadge status={s} className="w-24" />
             <span className="min-w-0 flex-1">
               {s === "ok" && "Inside the demo range."}
-              {s === "watch" && "In range, but within 10% of a limit and moving toward it, or a routine measurement is overdue."}
+              {s === "watch" && "In range, but within a fixed margin of a limit and moving toward it, or a routine measurement is more than an hour overdue."}
               {s === "caution" && "Outside the demo range. Needs attention, not immediate action."}
               {s === "warning" && "Outside the critical demo range. Act now."}
-              {s === "nodata" && "No reading for three times the expected interval, or a daily measurement not taken yet today."}
+              {s === "nodata" && "A live sensor silent for three times its expected interval, or a daily measurement not done by the end of the day."}
             </span>
           </li>
         ))}
+        <li className="flex flex-wrap gap-x-3">
+          <span className="w-24 text-muted-foreground">Due</span>
+          <span className="min-w-0 flex-1">A daily measurement not taken yet, up to an hour after its routine time. Shown as plain text, with no badge or colour.</span>
+        </li>
       </ul>
       <P>
         Caution and Warning are NASA's own alert words for crewed vehicles. Watch is this prototype's word for the lowest level. A value is classified after rounding to the precision shown on screen, so a number and its
         status never disagree.
       </P>
       <P>
-        Watch looks at the last hour for live signals (the mean of the last 10 minutes against 50 to 70 minutes ago) and at up to five earlier readings for entered ones. For SpO₂ and temperature, 10% of the limit would
-        cover the whole healthy range, so the margin is 10% of the in-range span instead.
+        Watch uses a fixed margin inside each demo limit: heart rate 6 bpm, SpO₂ 1 %, temperature 0.3 °C, blood pressure 10 mmHg systolic and 5 mmHg diastolic, blood glucose 10 mg/dL, sleep 0.5 h,
+        exercise 15 min and radiation 2 µGy/h. "Moving toward the limit" means over the last hour for live readings (the last 10 minutes against 50 to 70 minutes ago) and over the last 3 days for entered ones. A
+        percentage margin was tried first and rejected: 10% of the SpO₂ limit would cover every normal reading.
       </P>
+      <P>Blood glucose is judged against the range for when it was taken: 70 to 110 mg/dL fasting or before a meal, and 70 to 140 mg/dL after a meal. The caution and warning bands are the same for both.</P>
       <P>A new blood pressure, glucose, sleep or mood reading taken during an alert is logged on that alert as a re-measure. To keep noise from firing alerts, a live value must stay out of range for 60 seconds before an alert fires, and stay clear for 60 seconds before it ends. Acknowledging an alert quiets it without hiding it.</P>
 
       <H2>Demo thresholds</H2>
@@ -98,7 +108,7 @@ function Content() {
                   <th scope="row" className="px-3 py-2 text-left font-medium">
                     {d.name}
                   </th>
-                  <td className="px-3 py-2 text-muted-foreground">{k === "mood" ? "1 to 5" : d.unit}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{d.tableUnit ?? d.unit}</td>
                   <td className="px-3 py-2 font-mono text-[13px]">{d.table.inRange}</td>
                   <td className="px-3 py-2 font-mono text-[13px]">{d.table.caution}</td>
                   <td className="px-3 py-2 font-mono text-[13px]">{d.table.warning}</td>
@@ -145,9 +155,9 @@ function Content() {
       <H2>Limitations</H2>
       <ul className="mt-2 list-disc space-y-1 pl-5 type-small">
         <li>All data is simulated. No real sensor, astronaut or mission is involved.</li>
-        <li>Thresholds are demo values. The blood glucose range is for fasting readings and is applied to every reading.</li>
+        <li>Thresholds are demo values, including the exercise target of 120 minutes a day.</li>
         <li>Guidance covers re-measuring, habits, mission procedure and escalation only. It does not diagnose.</li>
-        <li>Eyes, inner ear, immune system, and bones and muscles are not measured directly.</li>
+        <li>Eyes and inner ear are not measured. Temperature is only a fever check, not a measure of the immune system. Exercise minutes stand in for bone and muscle health, which is not measured directly.</li>
         <li>There is no server yet. Data lives in memory and resets on reload.</li>
       </ul>
       <Todo>anything you learn from testing with other people.</Todo>
