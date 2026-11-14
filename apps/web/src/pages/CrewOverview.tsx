@@ -86,7 +86,10 @@ function Content() {
   };
   const nameCell = (v: HealthView, big = false) =>
     canOpen(v) ? (
-      <button type="button" onClick={() => setOpened({ id: v.astronaut.id })} className={clsx("relative text-left underline decoration-border-strong underline-offset-4 hover:decoration-foreground", big ? "type-section" : "font-semibold")}>
+      <button type="button" onClick={() => setOpened({ id: v.astronaut.id })} className={clsx(
+        "relative text-left underline decoration-border-strong underline-offset-4 hover:decoration-foreground max-xl:before:absolute max-xl:before:inset-x-0 max-xl:before:-inset-y-3 max-xl:before:content-['']",
+        big ? "type-section" : "font-semibold",
+      )}>
         {v.astronaut.name}
       </button>
     ) : (

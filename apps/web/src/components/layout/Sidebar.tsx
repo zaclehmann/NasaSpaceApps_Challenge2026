@@ -136,7 +136,7 @@ export function Sidebar() {
   return (
     <RD.Root open={open} onOpenChange={setOpen}>
       <RD.Trigger
-        className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground max-xl:size-10"
+        className="relative -ml-1 flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground max-xl:size-10 max-xl:before:absolute max-xl:before:-inset-1 max-xl:before:content-['']"
         aria-label="Open navigation"
       >
         <Menu size={16} strokeWidth={1.75} aria-hidden="true" />

@@ -57,9 +57,9 @@ export function AppHeader() {
       </div>
 
       <div className="flex min-w-0 items-center justify-end gap-4 md:justify-center">
-        <span className="whitespace-nowrap max-lg:hidden xl:max-2xl:hidden">{mission.name}</span>
+        <span className="whitespace-nowrap max-2xl:hidden">{mission.name}</span>
         <span className="whitespace-nowrap text-muted-foreground max-md:hidden">Mission day {missionDay(mission.met)}</span>
-        <span className="whitespace-nowrap text-muted-foreground max-lg:hidden xl:max-2xl:hidden">MET {formatMet(mission.met)}</span>
+        <span className="whitespace-nowrap text-muted-foreground max-2xl:hidden">MET {formatMet(mission.met)}</span>
         <Rule className="max-md:hidden" />
         <EarthLinkStatus />
         <span className="md:hidden">

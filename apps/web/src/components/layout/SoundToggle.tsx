@@ -13,7 +13,8 @@ export function SoundToggle({ compact = false }: { compact?: boolean }) {
     <Button
       variant="text"
       size="sm"
-      className="text-muted-foreground"
+      // Icon only on phone: the invisible extension makes the touch target 48 px wide as well as tall.
+      className={compact ? "text-muted-foreground max-xl:before:-inset-x-3" : "text-muted-foreground"}
       aria-pressed={muted}
       aria-label={compact ? (muted ? "Click sound and vibration off. Turn on" : "Click sound and vibration on. Mute") : undefined}
       title="Mutes click sounds and vibration. Alarms for due checks and Warnings always sound."
