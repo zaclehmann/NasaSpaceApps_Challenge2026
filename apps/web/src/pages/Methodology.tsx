@@ -93,7 +93,7 @@ function Content() {
 
       <H2>Demo thresholds</H2>
       <P>Every range below is a demo value chosen for this prototype. None of them is a NASA limit or clinical guidance.</P>
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto" tabIndex={0} role="region" aria-label="Demo thresholds table, scrolls sideways on narrow screens">
         <table className="w-full min-w-[640px] type-small">
           <thead className="bg-muted type-label text-muted-foreground">
             <tr>
@@ -129,7 +129,7 @@ function Content() {
         and green proposal failed, so Watch became blue, which the medical alarm standard IEC 60601-1-8 allows for low priority.
       </P>
       <P>{"Exception: the routine Start (green) and Postpone (red) buttons use status colours on purpose, so a due check stands out; they never appear for indicator status."}</P>
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto" tabIndex={0} role="region" aria-label="Status colour validation table, scrolls sideways on narrow screens">
         <table className="w-full min-w-[640px] type-small">
           <thead className="bg-muted type-label text-muted-foreground">
             <tr>
