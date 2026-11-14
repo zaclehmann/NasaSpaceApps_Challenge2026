@@ -275,7 +275,7 @@ export function trendArrow(key: IndicatorKey, readings: readonly Reading[], now:
   return "flat";
 }
 
-const fmtLimit = (key: IndicatorKey, limit: number) => `${limit.toFixed(INDICATORS[key].decimals)} ${INDICATORS[key].unit}`;
+const fmtLimit = (key: IndicatorKey, limit: number) => `${key === "temp" ? limit.toFixed(1) : String(limit)} ${INDICATORS[key].unit}`;
 
 /** One plain sentence explaining the status, fact first (ui.md 5.3 item 3). Every threshold says "demo". */
 export function statusLine(key: IndicatorKey, ev: Evaluation, now: number): string {
@@ -310,7 +310,19 @@ export function statusLine(key: IndicatorKey, ev: Evaluation, now: number): stri
         return `${which} mmHg is ${rel} ${what} of ${ev.limit} mmHg.`;
       }
       if (ev.status === "warning") return `${side} the critical demo limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
+      // One-sided ranges read better as a limit than as a range.
+      if (def.low === undefined || def.high === undefined) return `${side} the demo limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
       return `${side} your demo range of ${def.rangeText}${dur}.`;
     }
   }
+}
+
+/** The rule that puts an indicator in Caution or Warning, in plain words. Every limit is a demo value. */
+export function ruleText(key: IndicatorKey, ev: Evaluation): string {
+  const def = INDICATORS[key];
+  const word = ev.status === "warning" ? "Warning" : "Caution";
+  if (key === "mood") return ev.twoDays ? "Demo rule: Warning when mood is Very low on two days running." : "Demo rule: Caution when mood is Low, or Very low once.";
+  const rel = ev.side === "above" ? (ev.inclusive ? "at or above" : "above") : "below";
+  const subject = ev.component ? `${ev.component} blood pressure` : def.phrase;
+  return `Demo rule: ${word} when ${subject} is ${rel} ${fmtLimit(key, ev.limit ?? 0)}.`;
 }

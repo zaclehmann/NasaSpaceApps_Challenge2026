@@ -195,3 +195,20 @@ export const DEVICE_NAMES: Record<DeviceId, string> = {
   dosimeter: "Dosimeter",
   self: "Self-report",
 };
+
+export const WINDOW_SEC: Record<import("./types").ChartWindow, number> = { "1h": 3600, "24h": 86400, "7d": 7 * 86400, "30d": 30 * 86400 };
+
+/** Seconds between samples a data source returns for a live or habitat indicator in each chart window. */
+export function sampleStepSec(key: IndicatorKey, window: import("./types").ChartWindow): number {
+  const habitat = INDICATORS[key].source === "habitat";
+  switch (window) {
+    case "1h":
+      return habitat ? 60 : 5;
+    case "24h":
+      return habitat ? 600 : 120;
+    case "7d":
+      return habitat ? 3600 : 900;
+    case "30d":
+      return habitat ? 4 * 3600 : 3600;
+  }
+}
