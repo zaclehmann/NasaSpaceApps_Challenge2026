@@ -30,14 +30,10 @@ export function taskStatusText(e: RoutineEntry, _now?: number): string {
   }
 }
 
-/** Solid status-coloured buttons. `!` so they beat the variant's own fill. */
-const RED = "border-transparent! bg-warning! text-[var(--glyph-on-status)]! hover:opacity-90!";
-const GREEN = "border-transparent! bg-ok! text-[var(--glyph-on-status)]! hover:opacity-90!";
-
 /**
  * The actions for an open task, the same in the status strip and the routine table.
- * Due now: a red Postpone (opens the timeframe dialog) and a green Start that pulses.
- * Overdue: Start only.
+ * Start is the primary (black) button. Due now also offers Postpone as a secondary button.
+ * No status-coloured fills and no pulsing: status colour is only for status (ui.md 3.3).
  */
 export function TaskActions({ e }: { e: RoutineEntry }) {
   const { startProcedure, setPostponeTaskId } = useUi();
@@ -45,11 +41,11 @@ export function TaskActions({ e }: { e: RoutineEntry }) {
   return (
     <span className="inline-flex items-center gap-2">
       {due && (
-        <Button size="sm" variant="primary" className={RED} onClick={() => setPostponeTaskId(e.task.id)}>
+        <Button size="sm" variant="secondary" onClick={() => setPostponeTaskId(e.task.id)}>
           Postpone
         </Button>
       )}
-      <Button size="sm" variant="primary" className={clsx(due && ["anim-attention-ok", GREEN])} onClick={() => startProcedure({ kind: e.task.kind, taskId: e.task.id })}>
+      <Button size="sm" variant="primary" onClick={() => startProcedure({ kind: e.task.kind, taskId: e.task.id })}>
         Start
       </Button>
     </span>
@@ -202,7 +198,7 @@ export function PostponeDialog({ view }: { view: HealthView }) {
           <Button variant="secondary" onClick={close}>
             Cancel
           </Button>
-          <Button variant="primary" className={RED} onClick={confirm}>
+          <Button variant="primary" onClick={confirm}>
             Postpone
           </Button>
         </>

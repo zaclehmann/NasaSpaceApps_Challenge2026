@@ -67,22 +67,6 @@
 @keyframes mv-page-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 .anim-page { animation: mv-page-in 180ms ease-out; }
 
-/* A routine check that is due now: a slow pulse (well under 3 flashes a second), stopped by reduced motion. */
-@keyframes mv-attention {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, var(--ring) 45%, transparent); }
-  50% { opacity: 0.6; box-shadow: 0 0 0 5px color-mix(in oklab, var(--ring) 0%, transparent); }
-}
-.anim-attention { animation: mv-attention 1.4s ease-in-out infinite; }
-@keyframes mv-attention-warning {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 55%, transparent); }
-  50% { opacity: 0.7; box-shadow: 0 0 0 6px color-mix(in oklab, var(--warning) 0%, transparent); }
-}
-.anim-attention-warning { animation: mv-attention-warning 1.4s ease-in-out infinite; }
-@keyframes mv-attention-ok {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 55%, transparent); }
-  50% { opacity: 0.7; box-shadow: 0 0 0 6px color-mix(in oklab, var(--ok) 0%, transparent); }
-}
-.anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out infinite; }
 /* A crew picker row whose routine check is due now: the whole row blinks. Reduced motion keeps the tint. */
 @keyframes mv-row-alert {
   0%, 100% { background-color: color-mix(in oklab, var(--warning) 26%, transparent); }
