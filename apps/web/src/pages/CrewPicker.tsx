@@ -9,7 +9,6 @@ import clsx from "clsx";
 import { useRef, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { formatClock, missionDay, nextTask, type RoutineEntry } from "@missionvitals/shared";
-import { useDueAlarm } from "../audio/alertTone";
 import { BadgeIcon, StatusBadge } from "../components/status/StatusBadge";
 import { useCrewHealth, useData, useMission } from "../data/DataProvider";
 import type { HealthView } from "../data/health";
@@ -45,12 +44,6 @@ function NextCheck({ e, now }: { e: RoutineEntry | undefined; now: number }) {
   );
 }
 
-/** Every crew member's due-now checks go to the one app-wide alarm, which rings once per beat. */
-function useCrewAlarm(crew: HealthView[]) {
-  const items = crew.flatMap((v) => v.routine.entries.filter((e) => e.state.kind === "due").map((e) => ({ key: `${v.astronaut.id}:${e.task.id}:${e.dueAt}`, dueAt: e.dueAt })));
-  useDueAlarm(items, crew[0]?.now ?? 0, false);
-}
-
 /** "3 crew. 2 checks due now. 1 caution." Plain sentences, no counters in badges. */
 function summary(crew: HealthView[]): string {
   const due = crew.reduce((n, v) => n + v.routine.entries.filter((e) => e.state.kind === "due" || e.state.kind === "overdue").length, 0);
@@ -71,7 +64,6 @@ export default function CrewPicker() {
   const mission = useMission();
   const crew = useCrewHealth();
   const list = useRef<HTMLUListElement>(null);
-  useCrewAlarm(crew);
   const now = crew[0]?.now ?? mission.met;
 
   // Desktop list behaviour: Up and Down move between people, Home and End jump. Enter and Space open (native).

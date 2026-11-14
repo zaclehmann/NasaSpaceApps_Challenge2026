@@ -1,27 +1,75 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// The routine alarm: two short falling tones, played twice, made with the Web Audio API (no file).
-// There is one alarm for the whole app. Every screen reports the tasks that are due now; however many
-// tasks or crew members are due, it rings once per beat, at the pace of the task that has waited
-// longest (see ringInterval), and a ring never starts while the last one is still sounding.
-// Browsers keep audio locked until the page has had a click or key press. A tone asked for before then
-// waits and plays once on the first interaction.
-import { useEffect, useId, useRef } from "react";
+// The Warning tone: two short falling tones, played twice, made with the Web Audio API (no file).
+// Policy:
+// - Warning only. Due checks, Watch and Caution are silent.
+// - Never loops. Each Warning rings once, when it first appears; it never repeats, even while unacknowledged.
+// - Off until the user has interacted. Before the first click or key press nothing plays, and nothing is
+//   saved up to play later.
+// - Visible mute (SoundToggle in the header). The choice is kept on this device.
+// Playback rules that stop rings doubling up:
+// - Tabs share the list of Warnings already rung in localStorage and take a Web Lock before ringing, so one
+//   Warning rings once across every open tab.
+// - All state lives in one object on globalThis, so a hot reload while developing reuses it rather than
+//   leaving an old AudioContext beside a new one.
+// - A ring never starts while one is sounding.
+import { useCallback, useEffect, useState } from "react";
 
 /** The tone pattern lasts about 1.2 s. A new ring inside this window is dropped, never layered. */
 const TONE_MS = 1300;
+/** Warnings already rung, shared by every tab of the app on this device. */
+const RUNG_KEY = "missionvitals.alarm.rung";
+const MUTE_KEY = "missionvitals.alarm.muted";
+const LOCK_NAME = "missionvitals-alarm";
 
-let ctx: AudioContext | null = null;
-let pending = false;
-let unlockBound = false;
-let lastPlayed = -Infinity;
+interface AlarmState {
+  ctx: AudioContext | null;
+  /** The page has had a click or key press, so the browser allows sound. */
+  interacted: boolean;
+  unlockBound: boolean;
+  /** Wall-clock time this tab last started the tone. */
+  lastPlayed: number;
+  /** Warnings this tab has already looked at. Each is considered once, so nothing repeats or plays late. */
+  seen: Set<string>;
+  muted: boolean;
+  muteListeners: Set<(m: boolean) => void>;
+}
+
+function readMuted(): boolean {
+  try {
+    return window.localStorage.getItem(MUTE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+const G = globalThis as unknown as { __missionvitalsAlarm?: AlarmState };
+// A state object from an older version of this module (the due-check alarm) lacks these fields: start fresh.
+const S: AlarmState = G.__missionvitalsAlarm && "seen" in G.__missionvitalsAlarm
+  ? G.__missionvitalsAlarm
+  : (G.__missionvitalsAlarm = { ctx: null, interacted: false, unlockBound: false, lastPlayed: -Infinity, seen: new Set(), muted: readMuted(), muteListeners: new Set() });
 
 function context(): AudioContext | null {
-  if (ctx) return ctx;
+  if (S.ctx) return S.ctx;
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return null;
-  ctx = new AC();
-  return ctx;
+  S.ctx = new AC();
+  return S.ctx;
 }
+
+/** Marks the page as interacted with on the first click or key press, and unlocks audio then. */
+function bindUnlock() {
+  if (S.unlockBound || typeof window === "undefined") return;
+  S.unlockBound = true;
+  const unlock = () => {
+    S.interacted = true;
+    void context()?.resume();
+    window.removeEventListener("pointerdown", unlock, { capture: true });
+    window.removeEventListener("keydown", unlock, { capture: true });
+  };
+  window.addEventListener("pointerdown", unlock, { capture: true });
+  window.addEventListener("keydown", unlock, { capture: true });
+}
+bindUnlock();
 
 function tone(c: AudioContext, freq: number, start: number, length: number) {
   const osc = c.createOscillator();
@@ -38,10 +86,11 @@ function tone(c: AudioContext, freq: number, start: number, length: number) {
   osc.stop(start + length);
 }
 
+/** Starts the tone now, unless this tab started one less than TONE_MS ago. */
 function play(c: AudioContext) {
   const wall = Date.now();
-  if (wall - lastPlayed < TONE_MS) return;
-  lastPlayed = wall;
+  if (wall - S.lastPlayed < TONE_MS) return;
+  S.lastPlayed = wall;
   const t = c.currentTime + 0.02;
   for (let r = 0; r < 2; r++) {
     const o = t + r * 0.6;
@@ -50,120 +99,86 @@ function play(c: AudioContext) {
   }
 }
 
-function bindUnlock() {
-  if (unlockBound) return;
-  unlockBound = true;
-  const unlock = () => {
-    const c = context();
-    if (!c) return;
-    void c.resume().then(() => {
-      if (pending) {
-        pending = false;
-        play(c);
-      }
-    });
-  };
-  window.addEventListener("pointerdown", unlock, { capture: true });
-  window.addEventListener("keydown", unlock, { capture: true });
-}
+/* ---------- once per Warning, across tabs ---------- */
 
-export function playAlertTone() {
-  const c = context();
-  if (!c) return;
-  bindUnlock();
-  if (c.state === "running") play(c);
-  else pending = true;
-}
-
-/**
- * Seconds between rings, by how long the task has been due:
- * every 30 s for the first 2 min, every 15 s to 5 min, every 10 s to 10 min, then every 2.5 s.
- */
-export function ringInterval(dueForSec: number): number {
-  if (dueForSec < 120) return 30;
-  if (dueForSec < 300) return 15;
-  if (dueForSec < 600) return 10;
-  return 2.5;
-}
-
-/* ---------- the single alarm ---------- */
-
-export interface DueItem {
-  /** Stable for one due task, e.g. astronaut, task id and due time. */
-  key: string;
-  /** MET seconds when the task fell due. */
-  dueAt: number;
-}
-
-interface Source {
-  items: DueItem[];
-  /** MET and wall clock at registration; MET runs at wall-clock speed. */
-  met: number;
-  wall: number;
-}
-
-/** What each mounted screen says is due now. Paused screens are not listed. */
-const sources = new Map<string, Source>();
-/** Wall-clock time of the last ring, shared by every task, so the alarm never doubles up. */
-let lastRing: number | undefined;
-let timer: ReturnType<typeof setTimeout> | undefined;
-
-/** Seconds the longest-waiting due task has been waiting, or null if nothing is due. */
-function longestWait(wall: number): number | null {
-  let most: number | null = null;
-  for (const s of sources.values()) {
-    for (const i of s.items) {
-      const waited = Math.max(0, s.met - i.dueAt + (wall - s.wall) / 1000);
-      if (most === null || waited > most) most = waited;
-    }
+function readRung(): string[] {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(RUNG_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
   }
-  return most;
 }
 
-function tick() {
-  clearTimeout(timer);
-  timer = undefined;
-  const wall = Date.now();
-  const waited = longestWait(wall);
-  if (waited === null) {
-    // Nothing is due any more, so a tone still waiting for the first click is dropped.
-    pending = false;
+function writeRung(keys: string[]) {
+  try {
+    // Keep the list short: only recent Warnings matter.
+    window.localStorage.setItem(RUNG_KEY, JSON.stringify(keys.slice(-50)));
+  } catch {
+    // Storage blocked: this tab still rings each Warning only once (S.seen).
+  }
+}
+
+/** Runs `fn` while holding the cross-tab alarm lock, or skips it if another tab holds the lock. */
+function withAlarmLock(fn: () => void) {
+  const locks = (navigator as Navigator & { locks?: LockManager }).locks;
+  if (!locks) {
+    fn();
     return;
   }
-  const gap = ringInterval(waited) * 1000;
-  // Ring if it has not rung yet, or this stage's gap has passed (a little slack for timers).
-  if (lastRing === undefined || wall - lastRing >= gap - 100) {
-    playAlertTone();
-    lastRing = wall;
-  }
-  const next = lastRing + ringInterval(longestWait(Date.now()) ?? waited) * 1000;
-  timer = setTimeout(tick, Math.max(250, next - Date.now()));
+  void locks.request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
+    if (lock) fn();
+  });
+}
+
+/** Rings once for a Warning no tab has rung yet. Silent when muted or before the first interaction. */
+function ringOnce(key: string) {
+  if (S.muted || !S.interacted) return;
+  const c = context();
+  if (!c || c.state !== "running") return;
+  withAlarmLock(() => {
+    const rung = readRung();
+    if (rung.includes(key)) return;
+    writeRung([...rung, key]);
+    play(c);
+  });
 }
 
 /**
- * Tells the app-wide alarm which tasks this screen sees as due now. Any number of screens and tasks
- * can report; the alarm still rings once per beat. `paused` withdraws this screen's tasks, for
- * example while the measurement itself is open. `now` is the current MET in seconds.
+ * Rings once for each unacknowledged Warning when it first appears. `keys` identify the Warnings (alert
+ * ids). A Warning that appears while muted or before the first interaction is not rung later.
  */
-export function useDueAlarm(items: DueItem[], now: number, paused: boolean) {
-  const id = useId();
-  const latest = useRef({ items, now });
-  latest.current = { items, now };
-  const signature = items.map((i) => i.key).join("|");
-
+export function useWarningTone(keys: string[]) {
+  const signature = keys.join("|");
   useEffect(() => {
-    if (paused || latest.current.items.length === 0) {
-      sources.delete(id);
-    } else {
-      sources.set(id, { items: latest.current.items, met: latest.current.now, wall: Date.now() });
+    for (const key of keys) {
+      if (S.seen.has(key)) continue;
+      S.seen.add(key);
+      ringOnce(key);
     }
-    tick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+}
+
+/* ---------- mute ---------- */
+
+/** Whether the Warning tone is muted, and a setter. Shared by every screen; kept on this device. */
+export function useAlertMute(): [boolean, (m: boolean) => void] {
+  const [muted, setMutedState] = useState(S.muted);
+  useEffect(() => {
+    S.muteListeners.add(setMutedState);
     return () => {
-      sources.delete(id);
-      // Check again after React has had the chance to re-register (a changed task list, a page change,
-      // or the development double mount), so a ring waiting for the first click is not dropped early.
-      clearTimeout(timer);
-      timer = setTimeout(tick, 0);
+      S.muteListeners.delete(setMutedState);
     };
-  }, [id, signature, paused]);
+  }, []);
+  const set = useCallback((m: boolean) => {
+    S.muted = m;
+    try {
+      window.localStorage.setItem(MUTE_KEY, m ? "1" : "0");
+    } catch {
+      // The choice lasts for this visit only.
+    }
+    S.muteListeners.forEach((l) => l(m));
+  }, []);
+  return [muted, set];
 }
