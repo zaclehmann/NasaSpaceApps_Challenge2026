@@ -160,13 +160,16 @@ function Content() {
       <H2>Limitations</H2>
       <ul className="mt-2 list-disc space-y-1 pl-5 type-small">
         <li>All data is simulated. No real sensor, astronaut or mission is involved.</li>
-        <li>Thresholds are demo values, including the exercise target of 120 minutes a day.</li>
+        <li>No real sensor integration yet. The shirt, BP cuff, thermometer, glucometer and dosimeter are simulated.</li>
+        <li>No camera or image input. Nothing is read from photos or video.</li>
+        <li>Thresholds are demo values, not medical limits, including the exercise target of 120 minutes a day.</li>
         <li>Guidance covers re-measuring, habits, mission procedure and escalation only. It does not diagnose.</li>
-        <li>Eyes and inner ear are not measured. Temperature is only a fever check, not a measure of the immune system. Exercise minutes stand in for bone and muscle health, which is not measured directly.</li>
+        <li>Eyes and inner ear are not measured; they are covered only by the symptom log. Temperature is only a fever check, not a measure of the immune system. Exercise minutes stand in for bone and muscle health, which is not measured directly.</li>
         <li>
           On a spacecraft this would run on an onboard server. The prototype runs in the browser with a simulated data source behind one interface, so a server could replace it without changing
           the screens. Data lives in memory and resets on reload.
         </li>
+        <li>Not tested with astronauts or clinicians.</li>
       </ul>
       <Todo>anything you learn from testing with other people.</Todo>
 
