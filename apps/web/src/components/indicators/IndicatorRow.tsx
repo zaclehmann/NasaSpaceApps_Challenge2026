@@ -37,12 +37,13 @@ interface Props {
 
 export function IndicatorRow({ state, now, selected, linked, acknowledged }: Props) {
   const { select, setHoverIndicator, startProcedure } = useUi();
-  const { def, status, valueText, latest, openTask, key } = state;
+  const { def, status, valueText, latest, openTask, key, soFar } = state;
   const Icon = INDICATOR_ICON[key];
   // A check that is simply due is a routine matter, not a fault: the row says so without a status mark.
   const due = status === "due";
   const flagged = status !== "ok" && !due;
-  const needsMeasure = def.source === "entered" && valueText === null;
+  // Exercise has no button here: the shirt counts it, and the day's Confirm task lives in the routine list.
+  const needsMeasure = def.source === "entered" && valueText === null && key !== "exercise";
   const beat = key === "hr" && valueText && latest ? { animation: `mv-beat ${(60 / Math.max(30, latest.value)).toFixed(2)}s ease-out infinite` } : undefined;
   // Exercise is counted by the shirt through the day: the source line says so, and the value reads "124 min today so far".
   const time = key === "exercise" && valueText ? "From shirt" : def.source === "entered" && valueText && latest ? `${formatClock(latest.t)} MET` : "";
@@ -82,7 +83,7 @@ export function IndicatorRow({ state, now, selected, linked, acknowledged }: Pro
           </span>
           {valueText && (
             <span className="flex shrink-0 items-baseline gap-1.5">
-              <span key={valueText} className={clsx("fade-value text-right text-[17px] leading-6 font-semibold tabular-nums", status === "ok" || status === "watch" ? "text-foreground" : STATUS_TEXT[status])}>
+              <span key={valueText} className={clsx("fade-value text-right text-[17px] leading-6 font-semibold tabular-nums", soFar || status === "ok" || status === "watch" ? "text-foreground" : STATUS_TEXT[status])}>
                 {valueText}
               </span>
               <span className={clsx("type-caption whitespace-nowrap text-muted-foreground", key !== "exercise" && "w-9")}>{key === "mood" ? "" : key === "exercise" ? `${def.unit} today so far` : def.unit}</span>
@@ -98,7 +99,7 @@ export function IndicatorRow({ state, now, selected, linked, acknowledged }: Pro
       </button>
       {needsMeasure && (
         <Button size="sm" className="absolute! top-1.5 right-4 w-[88px] max-xl:top-1" onClick={() => startProcedure({ kind: key, taskId: openTask?.task.id })}>
-          {key === "exercise" ? "Confirm" : "Measure"}
+          Measure
         </Button>
       )}
     </li>

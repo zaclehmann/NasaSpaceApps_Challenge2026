@@ -71,7 +71,7 @@ export function Sources({ sources, lead }: { sources: { label: string; url: stri
 export function IndicatorDetail({ view, indicator }: { view: HealthView; indicator: IndicatorKey }) {
   const { startProcedure, select } = useUi();
   const state = view.indicators[indicator];
-  const { def, status, latest, valueText, ev } = state;
+  const { def, status, latest, valueText, ev, soFar } = state;
   const g = GUIDANCE[indicator];
   const Icon = INDICATOR_ICON[indicator];
   const entered = def.source === "entered";
@@ -81,12 +81,13 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
   const level: EscalationLevel =
     status === "warning" ? "surgeon" : status === "caution" && alert?.actions.some((a) => a.kind === "remeasured" || a.kind === "contacted-cmo") ? "cmo" : "self";
   const unit = indicator === "mood" ? "" : ` ${def.unit}`;
-  const measureLabel = indicator === "exercise" ? (valueText ? "Correct" : "Confirm") : valueText ? "Re-measure" : "Measure";
+  const measureLabel = indicator === "exercise" ? (soFar ? "Confirm" : "Correct") : valueText ? "Re-measure" : "Measure";
 
   const facts: [string, ReactNode][] = [["Your range", def.rangeText]];
   if (state.recentRange) facts.push([entered ? "Last 7 days" : "Last hour", `${state.recentRange}${unit}`]);
   if (!entered && ev.since !== undefined && (status === "caution" || status === "warning")) facts.push(["Out of range since", `${formatClock(ev.since)} MET`]);
-  if (valueText && latest) facts.push(["Source", `${def.sourceText}, ${formatClock(latest.t)} MET`]);
+  if (soFar) facts.push(["Source", `${def.sourceText}. Not confirmed yet`]);
+  else if (valueText && latest) facts.push(["Source", `${def.sourceText}, ${formatClock(latest.t)} MET`]);
   else if (latest) facts.push(["Last reading", `Day ${missionDay(latest.t)}, ${formatClock(latest.t)} MET`]);
   else facts.push(["Source", def.sourceText]);
 
@@ -102,19 +103,23 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
 
   const summary = (
     <>
-      {valueText && latest ? (
+      {valueText && (latest || soFar) ? (
         <p className="flex items-baseline gap-1.5">
-          <span key={valueText} className={clsx("fade-value text-[40px] leading-[44px] font-semibold tracking-[-0.03em]", status === "ok" || status === "watch" ? "text-foreground" : STATUS_TEXT[status])}>
+          <span key={valueText} className={clsx("fade-value text-[40px] leading-[44px] font-semibold tracking-[-0.03em]", soFar || status === "ok" || status === "watch" ? "text-foreground" : STATUS_TEXT[status])}>
             {valueText}
           </span>
-          {indicator !== "mood" && <span className="type-label text-muted-foreground">{def.unit}</span>}
+          {indicator !== "mood" && <span className="type-label text-muted-foreground">{soFar ? `${def.unit} today so far` : def.unit}</span>}
         </p>
       ) : (
         <p className={clsx("type-summary", status === "due" ? "text-muted-foreground" : "text-nodata-text")}>
           {status === "due" ? (state.openTask ? taskStatusText(state.openTask, view.now) : "Due today") : "No current reading"}
         </p>
       )}
-      <p className="mt-1 max-w-[62ch] type-small">{statusLine(indicator, ev, view.now)}</p>
+      <p className="mt-1 max-w-[62ch] type-small">
+        {soFar
+          ? `Counted by your shirt so far today. Confirm the day's total${state.openTask && state.openTask.state.kind === "upcoming" ? ` at ${formatClock(state.openTask.dueAt)} MET` : ""}.`
+          : statusLine(indicator, ev, view.now)}
+      </p>
       {indicator === "mood" && (
         <p className="mt-1 flex items-center gap-1.5 type-caption text-subtle-foreground">
           <Lock size={14} strokeWidth={1.5} aria-hidden="true" />
@@ -130,7 +135,7 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
       icon={<Icon size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />}
       back={region ? { label: region.name, onClick: () => select({ kind: "region", id: region.id }) } : undefined}
       status={<StatusBadge status={status} />}
-      kicker={latest && valueText ? `${formatClock(latest.t)} MET` : undefined}
+      kicker={latest && valueText && !soFar ? `${formatClock(latest.t)} MET` : undefined}
       primary={primary}
       summary={summary}
       footer={<ResponseActions view={view} indicator={indicator} />}

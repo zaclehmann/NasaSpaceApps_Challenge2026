@@ -31,6 +31,8 @@ export interface DataSource {
   getMission(): Mission;
   /** Readings in time order, oldest first. Missing data is a gap, never a filled-in value. */
   getReadings(astronautId: string, indicator: IndicatorKey, window: ChartWindow): Reading[];
+  /** Exercise minutes the shirt has counted so far today, before the astronaut confirms the day's total. */
+  getExerciseSoFar(astronautId: string): number;
   /** Calls back whenever any data changes. Returns an unsubscribe function. */
   subscribe(callback: () => void): () => void;
   addReading(astronautId: string, indicator: IndicatorKey, reading: Omit<Reading, "t">, taskId?: string): Reading;

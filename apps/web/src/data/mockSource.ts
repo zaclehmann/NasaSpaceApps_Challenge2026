@@ -378,6 +378,20 @@ export class MockSource implements DataSource {
     return r;
   }
 
+  getExerciseSoFar(astronautId: string): number {
+    const now = this.now();
+    const day = startOfDay(now);
+    // A confirmed total for today wins; otherwise count the planned sessions up to now.
+    const confirmed = (this.manual[astronautId]?.exercise ?? []).filter((r) => r.t >= day).at(-1);
+    if (confirmed) return confirmed.value;
+    const b = BASE[astronautId];
+    if (!b) return 0;
+    // Resistance from 09:00 for 60 min, aerobic from 13:30 for the rest of the usual daily total.
+    const sessions: [number, number][] = [[9 * 60, 60], [13 * 60 + 30, b.exercise - 60]];
+    const minute = (now - day) / 60;
+    return Math.round(sessions.reduce((sum, [start, len]) => sum + Math.max(0, Math.min(len, minute - start)), 0));
+  }
+
   getRoutine(astronautId: string): RoutineSummary {
     const now = this.now();
     const entries = routineEntries(ROUTINE, this.completions[astronautId] ?? {}, now, this.postponements[astronautId]);

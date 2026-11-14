@@ -36,6 +36,8 @@ export interface IndicatorState {
   latest?: Reading;
   /** Value text without the unit, or null when there is no current value to show. */
   valueText: string | null;
+  /** Exercise only: valueText is the shirt's running total, not yet confirmed by the astronaut. */
+  soFar: boolean;
   arrow: TrendArrow;
   /** The open routine task for this indicator, if one is due or overdue. */
   openTask?: RoutineEntry;
@@ -115,13 +117,16 @@ export function buildHealth(source: DataSource, astronaut: Astronaut): HealthVie
     const ev = evaluate(key, readings, { now, routine: routineContext(routine.entries, key) });
     const latest = ev.latest;
     const current = latest !== undefined && ev.status !== "nodata" && ev.status !== "due" && (!entered || latest.t >= startOfDay(now));
+    // Exercise always shows the shirt's count for today; until it is confirmed it is a running total.
+    const soFar = key === "exercise" && !(current && latest);
     indicators[key] = {
       key,
       def,
       ev,
       status: ev.status,
       latest,
-      valueText: current && latest ? formatValue(key, latest.value, latest.value2) : null,
+      valueText: soFar ? String(source.getExerciseSoFar(astronaut.id)) : current && latest ? formatValue(key, latest.value, latest.value2) : null,
+      soFar,
       arrow: current ? trendArrow(key, readings, now) : "flat",
       openTask,
       spark: buildSpark(key, readings, entered),
