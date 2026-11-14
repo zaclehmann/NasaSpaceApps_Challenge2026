@@ -1,5 +1,6 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// The visible mute for alarm sounds (the routine alarm and the Warning tone). A toggle button: the icon and the word both say the state,
+// The visible mute for click feedback: the click sound and vibration. It never mutes an alarm; due checks
+// and Warnings always sound. A toggle button: the icon and the word both say the state,
 // so it never relies on the icon alone. On phone it is icon only, with the state in its accessible name.
 import { Volume2, VolumeX } from "lucide-react";
 import { useAlertMute } from "../../audio/alertTone";
@@ -14,8 +15,8 @@ export function SoundToggle({ compact = false }: { compact?: boolean }) {
       size="sm"
       className="text-muted-foreground"
       aria-pressed={muted}
-      aria-label={compact ? (muted ? "Alarm sound off. Turn on" : "Alarm sound on. Mute") : undefined}
-      title="Alarm sound: rings while a check is due now, and once when a Warning appears"
+      aria-label={compact ? (muted ? "Click sound and vibration off. Turn on" : "Click sound and vibration on. Mute") : undefined}
+      title="Mutes click sounds and vibration. Alarms for due checks and Warnings always sound."
       onClick={() => setMuted(!muted)}
     >
       <Icon size={16} strokeWidth={1.5} aria-hidden="true" />

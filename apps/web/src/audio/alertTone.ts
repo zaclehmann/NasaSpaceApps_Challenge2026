@@ -6,7 +6,8 @@
 //   10 min, then every 2.5 s. It stops when the task is done, postponed or turns overdue, and pauses while a
 //   measurement or the Postpone dialog is open.
 // - A Warning. One ring when it first appears; it never repeats.
-// The Sound toggle in the header mutes both, and the choice is kept on this device.
+// Alarms are never muted. The header Sound toggle (useAlertMute) is for click feedback, the click sound and
+// vibration (audio/clickFeedback.ts); it is kept here, on this device, so both read one setting.
 // Browsers keep audio locked until the page has had a click or key press. A routine ring asked for before
 // then waits and plays once on the first interaction; a Warning that appeared before then is not rung late.
 // Why rings never double up:
@@ -116,9 +117,8 @@ function tone(c: AudioContext, freq: number, start: number, length: number) {
   osc.stop(start + length);
 }
 
-/** Starts the tone now, unless muted or this tab started one less than TONE_MS ago. */
+/** Starts the tone now, unless this tab started one less than TONE_MS ago. Alarms ignore the mute. */
 function play(c: AudioContext) {
-  if (S.muted) return;
   const wall = Date.now();
   if (wall - S.lastPlayed < TONE_MS) return;
   S.lastPlayed = wall;
@@ -193,7 +193,7 @@ function bindUnlock() {
  * can never both decide to ring. Audio still locked: remember it and ring on the first interaction.
  */
 function ringIfDue(gapMs: number) {
-  if (S.ringing || S.muted) return;
+  if (S.ringing) return;
   S.ringing = true;
   withAlarmLock(
     () => {
@@ -304,9 +304,8 @@ function writeRung(keys: string[]) {
   }
 }
 
-/** Rings once for a Warning no tab has rung yet. Silent when muted or while audio is still locked. */
+/** Rings once for a Warning no tab has rung yet. Silent only while audio is still locked. */
 function ringWarning(key: string) {
-  if (S.muted) return;
   const c = context();
   bindUnlock();
   if (!c || c.state !== "running") return;
@@ -334,7 +333,10 @@ export function useWarningTone(keys: string[]) {
 
 /* ---------- mute ---------- */
 
-/** Whether alarm sounds are muted, and a setter. Shared by every screen; kept on this device. */
+/**
+ * The mute for click feedback (click sound and vibration), and a setter. It never mutes an alarm.
+ * Shared by every screen; kept on this device under MUTE_KEY, which clickFeedback.ts reads.
+ */
 export function useAlertMute(): [boolean, (m: boolean) => void] {
   const [muted, setMutedState] = useState(S.muted);
   useEffect(() => {
@@ -345,15 +347,12 @@ export function useAlertMute(): [boolean, (m: boolean) => void] {
   }, []);
   const set = useCallback((m: boolean) => {
     S.muted = m;
-    if (m) S.pending = false;
     try {
       window.localStorage.setItem(MUTE_KEY, m ? "1" : "0");
     } catch {
       // The choice lasts for this visit only.
     }
     S.muteListeners.forEach((l) => l(m));
-    // Unmuting while a check is due picks the rhythm back up straight away.
-    if (!m) tick();
   }, []);
   return [muted, set];
 }

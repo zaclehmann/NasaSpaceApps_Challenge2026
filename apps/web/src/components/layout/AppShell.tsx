@@ -27,7 +27,7 @@ export function useCurrentHealth(): HealthView | null {
 
 /**
  * Sounds for this crew member: the routine alarm while a check is due now (quiet while a measurement or the
- * Postpone dialog is open), and one tone when a Warning first appears.
+ * Postpone dialog is open), and one tone when a Warning first appears. Neither is ever muted.
  */
 function Alarms({ view }: { view: HealthView }) {
   const { procedure, postponeTaskId } = useUi();
