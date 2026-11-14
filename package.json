@@ -1,0 +1,22 @@
+{
+  "name": "missionvitals",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MissionVitals: self-check health monitoring UI for astronauts on long missions. NASA Space Apps Challenge 2026. AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.",
+  "author": "Zac Lehmann",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @missionvitals/web",
+    "build": "npm run build -w @missionvitals/web",
+    "preview": "npm run preview -w @missionvitals/web",
+    "typecheck": "npm run typecheck -w @missionvitals/shared && npm run typecheck -w @missionvitals/web",
+    "test": "npm run test -w @missionvitals/shared"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

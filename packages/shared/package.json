@@ -1,0 +1,18 @@
+{
+  "name": "@missionvitals/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Types, indicator catalogue, demo thresholds, status function and guidance content. AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
