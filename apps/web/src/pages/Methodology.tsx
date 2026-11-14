@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { INDICATORS, INDICATOR_KEYS, SCENARIOS, SOURCES, STATUSES } from "@missionvitals/shared";
 import { AppShell } from "../components/layout/AppShell";
 import { StatusBadge } from "../components/status/StatusBadge";
+import { Todo } from "../components/ui/Todo";
 
-const Todo = ({ children }: { children: ReactNode }) => <p className="mt-2 type-body text-muted-foreground">TODO(Zac): {children}</p>;
-const H2 = ({ children }: { children: ReactNode }) => <h2 className="mt-10 border-t border-border pt-6 type-section">{children}</h2>;
-const P = ({ children }: { children: ReactNode }) => <p className="mt-2 type-body">{children}</p>;
+const H2 = ({ children }: { children: ReactNode }) => <h2 className="mt-8 border-t border-border pt-5 type-section">{children}</h2>;
+const P = ({ children }: { children: ReactNode }) => <p className="mt-2 max-w-[72ch] type-small">{children}</p>;
 const A = ({ href, children }: { href: string; children: ReactNode }) => (
   <a className="text-link underline underline-offset-2" href={href} target="_blank" rel="noreferrer">
     {children}
@@ -75,7 +75,7 @@ function Content() {
         Watch looks at the last hour for live signals (the mean of the last 10 minutes against 50 to 70 minutes ago) and at up to five earlier readings for entered ones. For SpO₂ and temperature, 10% of the limit would
         cover the whole healthy range, so the margin is 10% of the in-range span instead.
       </P>
-      <P>To keep noise from firing alerts, a live value must stay out of range for 60 seconds before an alert fires, and stay clear for 60 seconds before it ends. Acknowledging an alert quiets it without hiding it.</P>
+      <P>A new blood pressure, glucose, sleep or mood reading taken during an alert is logged on that alert as a re-measure. To keep noise from firing alerts, a live value must stay out of range for 60 seconds before an alert fires, and stay clear for 60 seconds before it ends. Acknowledging an alert quiets it without hiding it.</P>
 
       <H2>Demo thresholds</H2>
       <P>Every range below is a demo value chosen for this prototype. None of them is a NASA limit or clinical guidance.</P>
@@ -143,7 +143,7 @@ function Content() {
       </div>
 
       <H2>Limitations</H2>
-      <ul className="mt-2 list-disc space-y-1 pl-5 type-body">
+      <ul className="mt-2 list-disc space-y-1 pl-5 type-small">
         <li>All data is simulated. No real sensor, astronaut or mission is involved.</li>
         <li>Thresholds are demo values. The blood glucose range is for fasting readings and is applied to every reading.</li>
         <li>Guidance covers re-measuring, habits, mission procedure and escalation only. It does not diagnose.</li>

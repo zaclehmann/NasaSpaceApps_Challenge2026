@@ -11,7 +11,7 @@ import { ReportSheet } from "../report/ReportSheet";
 import { AppHeader } from "./AppHeader";
 import { BottomTabs } from "./BottomTabs";
 import { Toast } from "./Toast";
-import { WarningBar } from "./WarningBar";
+import { StatusStrip } from "./StatusStrip";
 
 const HealthContext = createContext<HealthView | null>(null);
 
@@ -20,12 +20,13 @@ export function useCurrentHealth(): HealthView | null {
   return useContext(HealthContext);
 }
 
-function Frame({ view, fixed, children }: { view: HealthView | null; fixed: boolean; children: ReactNode }) {
+function Frame({ view, fixed, strip, children }: { view: HealthView | null; fixed: boolean; strip: boolean; children: ReactNode }) {
+  const unacknowledged = view?.alerts.some((a) => a.status === "warning" && !a.acknowledged);
   return (
     <HealthContext.Provider value={view}>
       <div className={clsx("flex flex-col bg-background", fixed ? "md:h-dvh md:overflow-hidden max-md:min-h-dvh" : "min-h-dvh")}>
         <AppHeader />
-        {view && <WarningBar view={view} />}
+        {view && (strip || unacknowledged) && <StatusStrip view={view} routine={strip} />}
         {children}
         <div className="h-16 shrink-0 md:hidden" />
       </div>
@@ -38,24 +39,27 @@ function Frame({ view, fixed, children }: { view: HealthView | null; fixed: bool
   );
 }
 
-function WithHealth({ astronaut, fixed, children }: { astronaut: Astronaut; fixed: boolean; children: ReactNode }) {
+function WithHealth({ astronaut, fixed, strip, children }: { astronaut: Astronaut; fixed: boolean; strip: boolean; children: ReactNode }) {
   const view = useHealth(astronaut);
   return (
-    <Frame view={view} fixed={fixed}>
+    <Frame view={view} fixed={fixed} strip={strip}>
       {children}
     </Frame>
   );
 }
 
-/** `fixed`: fill the viewport and let columns scroll on their own (My Health on tablet and desktop). */
-export function AppShell({ fixed = false, children }: { fixed?: boolean; children: ReactNode }) {
+/**
+ * `fixed`: fill the viewport and let columns scroll on their own (My Health on tablet and desktop).
+ * `strip`: always show the status strip. Without it, the strip appears only for an unacknowledged Warning.
+ */
+export function AppShell({ fixed = false, strip = false, children }: { fixed?: boolean; strip?: boolean; children: ReactNode }) {
   const astronaut = useAstronaut();
   return astronaut ? (
-    <WithHealth astronaut={astronaut} fixed={fixed}>
+    <WithHealth astronaut={astronaut} fixed={fixed} strip={strip}>
       {children}
     </WithHealth>
   ) : (
-    <Frame view={null} fixed={fixed}>
+    <Frame view={null} fixed={fixed} strip={strip}>
       {children}
     </Frame>
   );

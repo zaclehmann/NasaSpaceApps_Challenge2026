@@ -31,12 +31,14 @@ Other commands:
 - The app opens on a crew picker. Choose Hana Park to see the default scenario (heart rate after exercise, Caution).
 - **Demo** in the header opens the demo controls: seven scenarios, the Earth link switch, the sleep-period switch (automatic dark mode), a theme override and an astronaut switch.
 - Links can set the state directly, for example `/?astronaut=hana&scenario=low-spo2&theme=dark`. Scenario ids: `normal`, `hr-exercise`, `low-spo2`, `high-bp`, `mood-falling`, `sensor-dropout`, `solar-event`.
-- `/kit` shows every token, badge, button and input in light and dark.
+- `/kit` shows every token, badge, button and input in light and dark. It is served only by `npm run dev`, not in a production build.
+- Text still to be written shows as `TODO(Zac)` notes on the Learn and Methodology pages while developing. A production build hides them.
 
 ## Structure
 
 ```
-docs/ui.md            Design spec. It wins over everything else.
+docs/ui.md            Design spec.
+docs/ui-rework-notes.md  What the 14 Nov rework changed, and where it now differs from the spec.
 apps/web              React + Vite + TypeScript + Tailwind CSS v4
   src/data            DataSource interface, seeded mock, React provider and hooks
   src/components      layout, status, indicators, body, panel, measure, charts, report, demo, ui

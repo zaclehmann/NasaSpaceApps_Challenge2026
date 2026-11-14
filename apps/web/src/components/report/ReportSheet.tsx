@@ -6,7 +6,7 @@ import { useMission, useSource } from "../../data/DataProvider";
 import { byPriority, type HealthView } from "../../data/health";
 import { useUi } from "../../state/ui";
 import { IndicatorChart } from "../charts/IndicatorChart";
-import { actionText } from "../panel/AlertBlock";
+import { actionText } from "../panel/ResponsePlan";
 import { BadgeIcon, StatusBadge } from "../status/StatusBadge";
 import { Button } from "../ui/Button";
 import { TextArea } from "../ui/NumericInput";

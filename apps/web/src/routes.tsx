@@ -19,5 +19,6 @@ export const router = createBrowserRouter([
   { path: "/crew", element: <CrewOverview /> },
   { path: "/learn", element: <Learn /> },
   { path: "/methodology", element: <Methodology /> },
-  { path: "/kit", element: <Kit /> },
+  // The component kit is a review aid. It is only served while developing.
+  ...(import.meta.env.DEV ? [{ path: "/kit", element: <Kit /> }] : []),
 ]);

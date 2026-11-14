@@ -131,7 +131,8 @@ export interface RoutineSummary {
   weekTotal: number;
 }
 
-export type AlertActionKind = "remeasured" | "checked-sensor" | "contacted-cmo" | "note";
+/** "step": one step of the response checklist was done; the step text is in `note`. */
+export type AlertActionKind = "remeasured" | "checked-sensor" | "contacted-cmo" | "note" | "step";
 
 export interface AlertAction {
   t: number;

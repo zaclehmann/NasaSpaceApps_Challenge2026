@@ -55,25 +55,60 @@ function xTicks(start: number, end: number, window: ChartWindow): number[] {
   return out;
 }
 
-function niceDomain(key: IndicatorKey, values: number[]): [number, number] {
+const STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200];
+
+/** A tight y scale with round tick values. It always includes the demo limits, so the band is in view. */
+function scale(key: IndicatorKey, values: number[]): { domain: [number, number]; ticks: number[] } {
   const def = INDICATORS[key];
-  if (key === "mood") return [1, 5];
-  if (key === "sleep") return [0, Math.max(10, Math.ceil(Math.max(...values, 0)))];
+  if (key === "mood") return { domain: [1, 5], ticks: [1, 2, 3, 4, 5] };
   const all = [...values];
   if (def.low !== undefined) all.push(def.low);
   if (def.high !== undefined) all.push(def.high);
   if (key === "bp") all.push(85);
-  if (!all.length) return [0, 1];
+  if (key === "sleep") all.push(0, 9);
+  if (!all.length) return { domain: [0, 1], ticks: [0, 1] };
   let lo = Math.min(...all);
   let hi = Math.max(...all);
-  const pad = Math.max((hi - lo) * 0.15, def.decimals ? 0.2 : 2);
-  lo -= pad;
-  hi += pad;
-  if (key === "spo2") hi = Math.min(100, hi);
-  if (key === "radiation") lo = Math.max(0, lo);
-  const span = hi - lo;
-  const unit = span > 60 ? 20 : span > 24 ? 10 : span > 10 ? 5 : span > 4 ? 2 : 0.5;
-  return [Math.floor(lo / unit) * unit, Math.ceil(hi / unit) * unit];
+  const pad = Math.max((hi - lo) * 0.06, def.decimals ? 0.1 : 1);
+  lo = key === "sleep" || key === "radiation" ? Math.max(0, lo - pad) : lo - pad;
+  hi = key === "spo2" ? Math.min(100, hi + pad) : hi + pad;
+  const step = STEPS.find((x) => (hi - lo) / x <= 5) ?? 200;
+  const d0 = Math.floor(lo / step) * step;
+  const d1 = Math.ceil(hi / step) * step;
+  const ticks: number[] = [];
+  for (let t = d0; t <= d1 + step / 100; t += step) ticks.push(Number(t.toFixed(2)));
+  return { domain: [d0, d1], ticks };
+}
+
+/** At most this many points are drawn for a line, so it stays a clean stroke at any width. */
+const MAX_LINE_POINTS = 150;
+
+/** Average neighbouring points into buckets. A bucket keeps its worst status, and gaps stay gaps. */
+function thin(points: Point[]): Point[] {
+  const real = points.filter((p) => p.v !== null).length;
+  const size = Math.ceil(real / MAX_LINE_POINTS);
+  if (size <= 1) return points;
+  const out: Point[] = [];
+  let bucket: Point[] = [];
+  const flush = () => {
+    if (!bucket.length) return;
+    const v = bucket.reduce((a, p) => a + (p.v ?? 0), 0) / bucket.length;
+    const worst = bucket.some((p) => p.status === "warning") ? "warning" : bucket.some((p) => p.status === "caution") ? "caution" : "ok";
+    const last = bucket[bucket.length - 1];
+    out.push({ t: last.t, v, caution: worst === "caution" ? v : null, warning: worst === "warning" ? v : null, status: worst, reading: last.reading });
+    bucket = [];
+  };
+  for (const p of points) {
+    if (p.v === null) {
+      flush();
+      out.push(p);
+    } else {
+      bucket.push(p);
+      if (bucket.length >= size) flush();
+    }
+  }
+  flush();
+  return out;
 }
 
 function ChartTip({ active, payload, indicator }: { active?: boolean; payload?: { payload: Point }[]; indicator: IndicatorKey }) {
@@ -101,9 +136,10 @@ interface Props {
   alert?: Alert;
   /** Small trend thumbnail: no axes, labels or table. */
   compact?: boolean;
+  height?: number;
 }
 
-export function IndicatorChart({ astronautId, indicator, window: win, alert, compact = false }: Props) {
+export function IndicatorChart({ astronautId, indicator, window: win, alert, compact = false, height = 180 }: Props) {
   const { source, version } = useData();
   const [table, setTable] = useState(false);
   const def = INDICATORS[indicator];
@@ -141,11 +177,11 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
       // Label the extreme only when it is out of range and is not the latest value, so calm charts stay calm.
       if (classify(indicator, [extreme]).level === "ok" || (latest && Math.abs(extreme.value - latest.value) < (def.decimals ? 0.3 : 4))) extreme = undefined;
     }
-    return { readings, points, gaps, start, now, domain: niceDomain(indicator, values), latest, extreme, values };
+    return { readings, points: def.chart === "line" ? thin(points) : points, gaps, start, now, ...scale(indicator, values), latest, extreme, values };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, version, astronautId, indicator, win]);
 
-  const { points, gaps, start, now, domain, latest, extreme, readings, values } = model;
+  const { points, gaps, start, now, domain, ticks, latest, extreme, readings, values } = model;
   const summary = values.length
     ? `${def.name} over ${WINDOW_WORDS[win]}. Latest ${latest ? formatValue(indicator, latest.value, latest.value2) : ""}${indicator === "mood" ? "" : ` ${def.unit}`}, lowest ${formatValue(
         indicator === "bp" ? "hr" : indicator,
@@ -157,7 +193,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
   const bandLow = def.low ?? domain[0];
   const bandHigh = def.high ?? domain[1];
   const showAlert = alert && alert.firedAt > start && !compact;
-  const fmtY = (v: number) => (indicator === "temp" ? v.toFixed(1) : String(v));
+  const fmtY = (v: number) => (indicator === "temp" || (ticks.length > 1 && ticks[1] - ticks[0] < 1) ? v.toFixed(1) : String(v));
 
   const tableRows = useMemo(() => {
     const max = 48;
@@ -167,8 +203,8 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
   }, [readings]);
 
   const chart = (
-    <ResponsiveContainer width="100%" height={compact ? 56 : 220}>
-      <ComposedChart data={points} margin={compact ? { top: 4, right: 4, bottom: 4, left: 4 } : { top: 20, right: 62, bottom: 0, left: 0 }} accessibilityLayer={false}>
+    <ResponsiveContainer width="100%" height={compact ? 44 : height}>
+      <ComposedChart data={points} margin={compact ? { top: 4, right: 4, bottom: 4, left: 4 } : { top: 18, right: 66, bottom: 0, left: 0 }} accessibilityLayer={false}>
         <defs>
           <pattern id="mv-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="6" stroke="var(--border-strong)" strokeWidth="1.5" />
@@ -190,13 +226,13 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
         <YAxis
           type="number"
           domain={domain}
-          tickCount={5}
-          ticks={indicator === "mood" ? [1, 2, 3, 4, 5] : undefined}
+          ticks={ticks}
+          interval={0}
           tickFormatter={fmtY}
           tick={TEXT}
           tickLine={false}
           axisLine={false}
-          width={38}
+          width={34}
           hide={compact}
           allowDataOverflow
         />
@@ -207,12 +243,11 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
           fillOpacity={1}
           stroke="none"
           ifOverflow="hidden"
-          label={compact ? undefined : { value: indicator === "bp" ? "Demo range, systolic" : "Demo range", position: "insideTopLeft", ...TEXT }}
         />
         {!compact && def.high !== undefined && (
           <ReferenceLine y={def.high} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: `${fmtY(def.high)} demo`, position: "right", ...TEXT }} />
         )}
-        {!compact && def.low !== undefined && indicator !== "mood" && (
+        {!compact && def.low !== undefined && indicator !== "mood" && indicator !== "bp" && (
           <ReferenceLine y={def.low} stroke="var(--border-strong)" strokeDasharray="4 3" label={{ value: `${fmtY(def.low)} demo`, position: "right", ...TEXT }} />
         )}
         {gaps.map(([a, b]) => (
@@ -247,7 +282,6 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
                 fill="var(--foreground)"
                 stroke="var(--card)"
                 strokeWidth={2}
-                label={compact ? undefined : { value: formatValue(indicator, latest.value), position: "right", fill: "var(--foreground)", fontSize: 12, fontWeight: 600 }}
               />
             )}
             {extreme && !compact && <ReferenceDot x={extreme.t} y={extreme.value} r={0} label={{ value: formatValue(indicator, extreme.value), position: extreme.value >= (latest?.value ?? 0) ? "top" : "bottom", ...TEXT }} />}
@@ -273,7 +307,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
                     { x: p.t, y: p.v },
                   ]}
                   stroke={dotColor(p.status)}
-                  strokeWidth={compact ? 3 : win === "30d" ? 4 : 8}
+                  strokeWidth={compact ? 2 : win === "30d" ? 3 : 6}
                   strokeLinecap={def.chart === "bp" ? "round" : "butt"}
                   ifOverflow="hidden"
                 />
@@ -299,8 +333,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
     <figure className="min-w-0">
       <figcaption className="flex items-baseline justify-between gap-3">
         <span className="type-caption text-subtle-foreground">
-          {indicator === "mood" ? "1 Very low to 5 Very good" : indicator === "bp" ? "mmHg, diastolic to systolic" : def.unit}
-          {entered ? "" : ", simulated"}
+          {indicator === "mood" ? "1 Very low to 5 Very good" : indicator === "bp" ? "mmHg, diastolic to systolic" : def.unit}. Shaded: demo range{indicator === "bp" ? ", systolic" : ""}.
         </span>
         <Button variant="text" size="sm" aria-pressed={table} onClick={() => setTable((x) => !x)}>
           {table ? "View as chart" : "View as table"}

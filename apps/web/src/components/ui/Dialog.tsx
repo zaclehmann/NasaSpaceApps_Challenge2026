@@ -27,6 +27,11 @@ export function Dialog({ open, onOpenChange, title, subtitle, variant = "dialog"
         {!page && <RD.Overlay className="anim-scrim fixed inset-0 z-40 bg-scrim" />}
         <RD.Content
           onCloseAutoFocus={returnFocus}
+          onOpenAutoFocus={(e) => {
+            // Focus the panel itself, not its close button, so nothing looks selected on open.
+            e.preventDefault();
+            (e.currentTarget as HTMLElement).focus();
+          }}
           className={clsx(
             "fixed z-50 flex flex-col text-foreground outline-none",
             page

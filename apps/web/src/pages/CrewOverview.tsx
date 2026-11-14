@@ -5,7 +5,9 @@ import { INDICATORS, formatClock, formatMet, type IndicatorKey } from "@missionv
 import { IndicatorChart } from "../components/charts/IndicatorChart";
 import { AppShell } from "../components/layout/AppShell";
 import { URGENCY_LABEL } from "../components/report/ReportSheet";
+import { Facts } from "../components/panel/IndicatorDetail";
 import { BadgeIcon, StatusBadge, StatusWord } from "../components/status/StatusBadge";
+import { STATUS_TEXT } from "../components/status/statusStyles";
 import { useAstronaut, useCrew, useCrewHealth, useData, useMission } from "../data/DataProvider";
 import type { HealthView } from "../data/health";
 
@@ -21,26 +23,16 @@ function Cell({ view, k, canSeeMood }: { view: HealthView; k: IndicatorKey; canS
       </span>
     );
   }
-  if (!s.valueText) {
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <BadgeIcon status={s.status} />
-        <StatusWord status={s.status} />
-      </span>
-    );
-  }
+  if (!s.valueText) return <span className="text-muted-foreground">{s.ev.reason === "silent" ? "No data" : "Not taken"}</span>;
+  const quiet = s.status === "ok";
   return (
-    <span>
-      <span className="font-medium whitespace-nowrap">
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {!quiet && <BadgeIcon status={s.status} size={12} />}
+      <span className={quiet || s.status === "watch" ? "font-medium" : `font-medium ${STATUS_TEXT[s.status]}`}>
         {s.valueText}
         {k === "mood" ? "" : ` ${s.def.unit}`}
       </span>
-      {s.status !== "ok" && (
-        <span className="mt-0.5 flex items-center gap-1.5 type-caption">
-          <BadgeIcon status={s.status} size={14} />
-          <StatusWord status={s.status} />
-        </span>
-      )}
+      {!quiet && <StatusWord status={s.status} className="type-caption" />}
     </span>
   );
 }
@@ -62,7 +54,7 @@ function Content() {
   const missionTotal = (meanRate * (mission.met / 3600)) / 1000;
 
   return (
-    <main className="mx-auto w-full max-w-[1240px] min-w-0 flex-1 space-y-10 px-4 py-6 md:px-6">
+    <main className="mx-auto w-full max-w-[1240px] min-w-0 flex-1 space-y-8 px-4 py-6 md:px-6">
       <div>
         <h1 className="type-title">Crew overview</h1>
         <p className="mt-1 type-small text-muted-foreground">
@@ -76,8 +68,8 @@ function Content() {
           <table className="w-full type-small">
             <thead className="bg-muted type-label text-muted-foreground">
               <tr>
-                {["Name", "Role", "Overall", ...COLUMNS.map((k) => INDICATORS[k].name), "Routine today", "Last check-in"].map((h) => (
-                  <th key={h} scope="col" className="px-3 py-2.5 text-left font-medium whitespace-nowrap">
+                {["Name", "Overall", ...COLUMNS.map((k) => INDICATORS[k].name), "Routine today", "Last check-in"].map((h) => (
+                  <th key={h} scope="col" className="px-2.5 py-2.5 text-left font-medium whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -86,22 +78,22 @@ function Content() {
             <tbody className="divide-y divide-border">
               {crew.map((v) => (
                 <tr key={v.astronaut.id} className="h-12 align-middle">
-                  <th scope="row" className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  <th scope="row" className="px-2.5 py-2 text-left font-semibold whitespace-nowrap">
                     {v.astronaut.name}
+                    <span className="block type-caption font-normal text-muted-foreground">{v.astronaut.role}</span>
                   </th>
-                  <td className="px-3 py-2 text-muted-foreground">{v.astronaut.role}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-2">
                     <StatusBadge status={v.overall} />
                   </td>
                   {COLUMNS.map((k) => (
-                    <td key={k} className="px-3 py-2">
+                    <td key={k} className="px-2.5 py-2 whitespace-nowrap">
                       <Cell view={v} k={k} canSeeMood={canSee(v)} />
                     </td>
                   ))}
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-2.5 py-2 whitespace-nowrap">
                     {v.routine.done} of {v.routine.total} done
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{v.lastCheckIn ? `${formatClock(v.lastCheckIn)} MET` : "None today"}</td>
+                  <td className="px-2.5 py-2 whitespace-nowrap text-muted-foreground">{v.lastCheckIn ? `${formatClock(v.lastCheckIn)} MET` : "None today"}</td>
                 </tr>
               ))}
             </tbody>
@@ -135,32 +127,30 @@ function Content() {
         </p>
       </section>
 
-      <section aria-label="Habitat radiation" className="grid gap-x-10 gap-y-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <section aria-label="Habitat radiation" className="grid gap-x-10 gap-y-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div>
           <h2 className="type-section">Habitat radiation</h2>
           <p className="mt-1 type-caption text-subtle-foreground">Crew-wide, from the habitat dosimeter.</p>
-          <dl className="mt-4 space-y-4">
-            <div>
-              <dt className="type-label text-muted-foreground">Current dose rate</dt>
-              <dd className="mt-0.5">
-                <span className="block">
-                  <span className="type-value">{rad.valueText ?? "No reading"}</span> {rad.valueText && <span className="type-label text-muted-foreground">{rad.def.unit}</span>}
-                </span>
-                <StatusBadge status={rad.status} className="mt-1 type-small" />
-              </dd>
-            </div>
-            <div>
-              <dt className="type-label text-muted-foreground">Mission total, estimated</dt>
-              <dd className="mt-0.5">
-                <span className="type-value">{missionTotal.toFixed(1)}</span> <span className="type-label text-muted-foreground">mGy</span>
-                <span className="mt-1 block type-caption text-subtle-foreground">Mean dose rate of the last 30 days times mission time. Simulated.</span>
-              </dd>
-            </div>
-          </dl>
+          <div className="mt-3">
+            <Facts
+              rows={[
+                [
+                  "Current dose rate",
+                  <span key="rate" className="inline-flex items-center gap-2">
+                    {rad.valueText ? `${rad.valueText} ${rad.def.unit}` : "No reading"}
+                    {rad.status !== "ok" && <StatusBadge status={rad.status} className="type-caption" />}
+                  </span>,
+                ],
+                ["Demo range", rad.def.rangeText],
+                ["Mission total, estimated", `${missionTotal.toFixed(1)} mGy`],
+              ]}
+            />
+            <p className="mt-2 type-caption text-subtle-foreground">The total is the mean dose rate of the last 30 days times mission time. Simulated.</p>
+          </div>
         </div>
         <div className="min-w-0">
           <h3 className="type-small font-semibold">Dose rate, last 14 days</h3>
-          <IndicatorChart astronautId={crew[0].astronaut.id} indicator="radiation" window="14d" alert={crew[0].alerts.find((a) => a.indicator === "radiation")} />
+          <IndicatorChart astronautId={crew[0].astronaut.id} indicator="radiation" window="14d" alert={crew[0].alerts.find((a) => a.indicator === "radiation")} height={170} />
         </div>
       </section>
 

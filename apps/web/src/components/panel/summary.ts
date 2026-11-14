@@ -1,22 +1,25 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// The five-second answer to "Am I OK?" (ui.md 4.2, 5.2).
-import { nextTask, type Status } from "@missionvitals/shared";
+// The five-second answer to "Am I OK?" (ui.md 4.2, 5.2), built in parts so indicator names can be links.
+import type { Status } from "@missionvitals/shared";
 import { byPriority, type HealthView, type IndicatorState } from "../../data/health";
-import { taskStatusText } from "../layout/RoutineBar";
 
-const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+export interface Summary {
+  status: Status;
+  /** Text before the indicator names. */
+  lead: string;
+  /** The indicators the sentence names. */
+  names: IndicatorState[];
+  /** Text after the names. */
+  tail: string;
+  watching: IndicatorState[];
+  /** The whole sentence as plain text. */
+  plain: string;
+}
 
-function joinNames(items: IndicatorState[]): string {
+export function joinNames(items: IndicatorState[]): string {
   const names = items.map((i) => i.def.phrase);
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
-
-export interface Summary {
-  sentence: string;
-  status: Status;
-  attention: IndicatorState[];
-  watching: IndicatorState[];
 }
 
 export function buildSummary(view: HealthView): Summary {
@@ -25,23 +28,33 @@ export function buildSummary(view: HealthView): Summary {
   const cautions = all.filter((i) => i.status === "caution");
   const watching = all.filter((i) => i.status === "watch");
   const silent = all.filter((i) => i.status === "nodata" && i.ev.reason === "silent");
-  const attention = [...warnings, ...cautions];
-  let sentence: string;
+  let status: Status = "ok";
+  let lead = "You're in range.";
+  let names: IndicatorState[] = [];
+  let tail = "";
   if (warnings.length === 1) {
     const w = warnings[0];
     const how = w.key === "mood" ? "very low" : w.ev.side === "above" ? "high" : "low";
-    sentence = `Warning: ${w.def.phrase} is ${how}. Act now.`;
+    const at = w.valueText && w.key !== "mood" ? ` at ${w.valueText} ${w.def.unit}` : "";
+    status = "warning";
+    lead = "Warning: ";
+    names = warnings;
+    tail = ` is ${how}${at}. Act now.`;
   } else if (warnings.length > 1) {
-    sentence = `${warnings.length} warnings need you: ${joinNames(warnings)}. Act now.`;
+    status = "warning";
+    lead = `${warnings.length} warnings need you: `;
+    names = warnings;
+    tail = ". Act now.";
   } else if (cautions.length) {
-    sentence = `${cautions.length} ${cautions.length === 1 ? "caution needs" : "cautions need"} you: ${joinNames(cautions)}.`;
+    status = "caution";
+    lead = `${cautions.length} ${cautions.length === 1 ? "caution needs" : "cautions need"} you: `;
+    names = cautions;
+    tail = ".";
   } else if (silent.length) {
-    sentence = `No data from ${joinNames(silent)}. Check the sensor.`;
-  } else {
-    const next = nextTask(view.routine.entries);
-    const tail = next ? `Next check: ${lower(next.task.label)}, ${lower(taskStatusText(next, view.now))}.` : "Today's checks are done.";
-    sentence = `You're in range. ${tail}`;
+    status = "nodata";
+    lead = "No data from ";
+    names = silent;
+    tail = ". Check the sensor.";
   }
-  const status: Status = warnings.length ? "warning" : cautions.length ? "caution" : silent.length ? "nodata" : "ok";
-  return { sentence, status, attention, watching };
+  return { status, lead, names, tail, watching, plain: `${lead}${joinNames(names)}${tail}` };
 }

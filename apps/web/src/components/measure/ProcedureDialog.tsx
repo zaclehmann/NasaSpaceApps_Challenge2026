@@ -1,13 +1,14 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Guided measurement (ui.md 5.5): Prepare, Enter, Result. Written like a flight procedure.
+// The result step offers the next routine task that is due, so the morning checks run as one flow.
 import { useId, useState } from "react";
 import { GUIDANCE, INDICATORS, ROUTINE, statusLine, type IndicatorKey } from "@missionvitals/shared";
 import { useSource } from "../../data/DataProvider";
 import type { HealthView } from "../../data/health";
 import { useUi, type ProcedureRequest } from "../../state/ui";
 import { INDICATOR_ICON } from "../indicators/icons";
-import { EscalationLevels } from "../panel/EscalationLevels";
-import { Steps, WhatToDo } from "../panel/WhatToDo";
+import { taskStatusText } from "../layout/RoutineList";
+import { Steps } from "../panel/WhatToDo";
 import { StatusBadge } from "../status/StatusBadge";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -22,9 +23,11 @@ const EXERCISE = {
   steps: ["Complete today's planned session.", "Note how long you exercised.", "Wipe down the equipment and stow it."],
 };
 
+const STEP_NAMES = ["Prepare", "Enter", "Result"];
+
 function Body({ request, view }: { request: ProcedureRequest; view: HealthView }) {
   const source = useSource();
-  const { closeProcedure, showToast, setReportOpen } = useUi();
+  const { closeProcedure, startProcedure, showToast, setReportOpen } = useUi();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const formId = useId();
   const isExercise = request.kind === "exercise";
@@ -32,6 +35,8 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
   const proc = isExercise ? EXERCISE : { name: INDICATORS[key].name, ...GUIDANCE[key].howToMeasure };
   const Icon = INDICATOR_ICON[request.kind];
   const state = isExercise ? undefined : view.indicators[key];
+  const flagged = state?.status === "caution" || state?.status === "warning";
+  const next = step === 3 ? view.routine.entries.find((e) => e.state.kind === "overdue" || e.state.kind === "due") : undefined;
 
   const save = (r: NewReading) => {
     if (isExercise) {
@@ -47,7 +52,7 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
 
   const footer =
     step === 1 ? (
-      <Button variant="primary" onClick={() => setStep(2)}>
+      <Button variant="primary" autoFocus onClick={() => setStep(2)}>
         I'm ready
       </Button>
     ) : step === 2 ? (
@@ -58,17 +63,29 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
         </Button>
       </>
     ) : (
-      <Button variant="primary" onClick={closeProcedure}>
-        Done
-      </Button>
+      <>
+        {flagged && (
+          <Button
+            onClick={() => {
+              closeProcedure();
+              setReportOpen(true);
+            }}
+          >
+            Send report
+          </Button>
+        )}
+        {next && <Button onClick={() => startProcedure({ kind: next.task.kind, taskId: next.task.id })}>Start next</Button>}
+        <Button variant="primary" autoFocus onClick={closeProcedure}>
+          Done
+        </Button>
+      </>
     );
 
   return (
-    <Dialog open onOpenChange={(o) => !o && closeProcedure()} title={`${proc.name}, Procedure ${proc.procedureId}`} subtitle={`Step ${step} of 3`} footer={footer}>
+    <Dialog open onOpenChange={(o) => !o && closeProcedure()} title={`${proc.name}, Procedure ${proc.procedureId}`} subtitle={`Step ${step} of 3, ${STEP_NAMES[step - 1].toLowerCase()}`} footer={footer}>
       {step === 1 && (
         <div className="space-y-4">
-          <h3 className="type-body font-semibold">Prepare</h3>
-          <Steps steps={proc.steps} />
+          <Steps steps={proc.steps} label="Prepare" />
           <p className="flex items-center gap-2 type-small text-muted-foreground">
             <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
             Equipment: {proc.equipment.toLowerCase()}
@@ -76,42 +93,45 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
         </div>
       )}
       {step === 2 && (
-        <div className="space-y-4">
-          <h3 className="type-body font-semibold">{request.kind === "mood" ? "Check in" : "Enter the reading"}</h3>
+        <>
           {request.kind === "bp" && <BloodPressureForm formId={formId} onSave={save} />}
           {request.kind === "glucose" && <GlucoseForm formId={formId} onSave={save} />}
           {request.kind === "mood" && <MoodForm formId={formId} onSave={save} />}
           {request.kind === "sleep" && <SimpleValueForm formId={formId} label="Hours slept" unit="h" min={0} max={16} device="self" onSave={save} />}
           {isExercise && <SimpleValueForm formId={formId} label="Session length" unit="min" min={1} max={240} device="self" onSave={save} />}
-        </div>
+        </>
       )}
       {step === 3 && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {state ? (
             <>
               <div>
-                <StatusBadge status={state.status} className="type-small" />
-                <p className="mt-2 flex items-baseline gap-2">
-                  <span className="type-value-xl">{state.valueText}</span>
-                  {key !== "mood" && <span className="type-label text-muted-foreground">{state.def.unit}</span>}
-                </p>
-                <p className="mt-2 type-body">{statusLine(key, state.ev, view.now)}</p>
+                <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+                  <p className="flex items-baseline gap-1.5">
+                    <span className="type-value-xl">{state.valueText}</span>
+                    {key !== "mood" && <span className="type-label text-muted-foreground">{state.def.unit}</span>}
+                  </p>
+                  <StatusBadge status={state.status} className="pb-1.5 type-small" />
+                </div>
+                <p className="mt-1.5 type-small">{statusLine(key, state.ev, view.now)}</p>
               </div>
-              <WhatToDo steps={GUIDANCE[key].whatToDo[state.status]} />
-              {(state.status === "caution" || state.status === "warning") && (
-                <EscalationLevels
-                  escalation={GUIDANCE[key].escalation}
-                  current={state.status === "warning" ? "surgeon" : "self"}
-                  onReport={() => {
-                    closeProcedure();
-                    setReportOpen(true);
-                  }}
-                />
-              )}
+              <div>
+                <h3 className="mb-1.5 type-small font-semibold">What to do now</h3>
+                <Steps steps={GUIDANCE[key].whatToDo[state.status]} />
+              </div>
             </>
           ) : (
             <p className="type-body">Session logged. Today's routine is updated.</p>
           )}
+          <p className="border-t border-border pt-3 type-small text-muted-foreground">
+            {next ? (
+              <>
+                Next in your routine: <span className="font-medium text-foreground">{next.task.label}</span>, {taskStatusText(next, view.now).toLowerCase()}.
+              </>
+            ) : (
+              "Nothing else in your routine is due right now."
+            )}
+          </p>
         </div>
       )}
     </Dialog>

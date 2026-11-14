@@ -1,20 +1,19 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // My Health (ui.md 5.2): my numbers, where in my body, what to do.
-// Desktop: three columns. Tablet: two columns, summary strip and a right sheet. Phone: bottom tabs and full pages.
+// Desktop: three columns. Tablet: two columns and a right sheet. Phone: bottom tabs and full pages.
+import clsx from "clsx";
+import { ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { INDICATORS, INDICATOR_KEYS, type ChartWindow, type IndicatorKey } from "@missionvitals/shared";
-import { BodyFigure } from "../components/body/BodyFigure";
-import { BodyLegend } from "../components/body/BodyLegend";
-import { DeviceLine } from "../components/body/DeviceLine";
+import { BodyFooter } from "../components/body/BodyFooter";
+import { BodyStage } from "../components/body/BodyStage";
 import { IndicatorChart } from "../components/charts/IndicatorChart";
 import { IndicatorList } from "../components/indicators/IndicatorList";
 import { AppShell, useCurrentHealth } from "../components/layout/AppShell";
 import { usePhoneTab } from "../components/layout/BottomTabs";
-import { RoutineBar } from "../components/layout/RoutineBar";
-import { AttentionList, DetailBody, selectionTitle } from "../components/panel/DetailPanel";
-import { SummarySentence } from "../components/panel/SummarySentence";
-import { Button } from "../components/ui/Button";
+import { RoutineList } from "../components/layout/RoutineList";
+import { DetailBody, selectionTitle } from "../components/panel/DetailPanel";
 import { Dialog } from "../components/ui/Dialog";
 import { Sheet } from "../components/ui/Sheet";
 import { Tabs } from "../components/ui/Tabs";
@@ -22,17 +21,15 @@ import { useData } from "../data/DataProvider";
 import type { HealthView } from "../data/health";
 import { useSelection } from "../state/selection";
 import { useUi } from "../state/ui";
-import { useLayout } from "../theme/useTheme";
+import { useLayout, useMediaQuery } from "../theme/useTheme";
 
-function FigureColumn({ view }: { view: HealthView }) {
+function FigureColumn({ view, fill }: { view: HealthView; fill: boolean }) {
   return (
-    <section aria-label="Body systems" className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-4 px-4 py-4 md:py-6">
-      <div className="flex min-h-0 w-full flex-1 justify-center max-md:h-[62dvh] max-md:flex-none">
-        <BodyFigure view={view} />
+    <section aria-label="Body systems" className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className={fill ? "flex min-h-0 flex-1 flex-col p-4" : "px-4 py-2"}>
+        <BodyStage view={view} fill={fill} />
       </div>
-      <BodyLegend />
-      <DeviceLine view={view} />
-      <p className="type-caption text-subtle-foreground">Simulated data. Demo thresholds.</p>
+      <BodyFooter view={view} />
     </section>
   );
 }
@@ -44,19 +41,22 @@ function Trends({ view }: { view: HealthView }) {
   const id = useId();
   const effective = entered && win === "1h" ? "24h" : win;
   return (
-    <section aria-label="Trends" className="space-y-4 px-4 py-4">
-      <h1 className="type-title">Trends</h1>
+    <section aria-label="Trends" className="space-y-3 px-4 py-4">
+      <h1 className="type-section">Trends</h1>
       <div className="flex flex-col gap-1.5">
         <label htmlFor={id} className="type-label text-muted-foreground">
           Indicator
         </label>
-        <select id={id} value={key} onChange={(e) => setKey(e.target.value as IndicatorKey)} className="h-12 rounded-md border border-input bg-card px-3 type-body text-foreground">
-          {INDICATOR_KEYS.map((k) => (
-            <option key={k} value={k}>
-              {INDICATORS[k].name}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <select id={id} value={key} onChange={(e) => setKey(e.target.value as IndicatorKey)} className="h-12 w-full appearance-none rounded-md border border-input bg-card pr-10 pl-3 type-body text-foreground">
+            {INDICATOR_KEYS.map((k) => (
+              <option key={k} value={k}>
+                {INDICATORS[k].name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground" />
+        </div>
       </div>
       <Tabs
         label="Chart period"
@@ -69,7 +69,7 @@ function Trends({ view }: { view: HealthView }) {
           { value: "30d", label: "30 d" },
         ]}
       />
-      <IndicatorChart astronautId={view.astronaut.id} indicator={key} window={effective} alert={view.alerts.find((a) => a.indicator === key)} />
+      <IndicatorChart astronautId={view.astronaut.id} indicator={key} window={effective} alert={view.alerts.find((a) => a.indicator === key)} height={220} />
     </section>
   );
 }
@@ -78,11 +78,11 @@ function More() {
   const { setDemoOpen, resetSelection } = useUi();
   const { setAstronautId } = useData();
   const navigate = useNavigate();
-  const row = "flex min-h-14 w-full items-center px-4 text-left type-body hover:bg-muted";
+  const row = "flex min-h-12 w-full items-center px-4 text-left type-body hover:bg-muted";
   return (
     <section aria-label="More" className="py-4">
-      <h1 className="px-4 type-title">More</h1>
-      <ul className="mt-4 divide-y divide-border border-y border-border">
+      <h1 className="px-4 type-section">More</h1>
+      <ul className="mt-3 divide-y divide-border border-y border-border">
         <li>
           <Link to="/crew" className={row}>
             Crew overview
@@ -117,18 +117,17 @@ function More() {
           </button>
         </li>
       </ul>
-      <p className="px-4 pt-4 type-caption text-subtle-foreground">Simulated data for this demo.</p>
+      <p className="px-4 pt-3 type-caption text-subtle-foreground">Simulated data for this demo.</p>
     </section>
   );
 }
 
-function Content() {
-  const view = useCurrentHealth();
+function Content({ view }: { view: HealthView }) {
   const layout = useLayout();
   const tab = usePhoneTab();
-  const { detailOpen, closeDetail, openDetail } = useUi();
-  const selection = useSelection(view!);
-  if (!view) return null;
+  const wide = useMediaQuery("(min-width: 1140px)");
+  const { detailOpen, closeDetail } = useUi();
+  const selection = useSelection(view);
   const title = selectionTitle(selection);
 
   if (layout === "phone") {
@@ -136,16 +135,14 @@ function Content() {
       <main className="min-w-0 flex-1">
         {tab === "today" && (
           <>
-            <div className="space-y-2 px-4 pt-4">
-              <h1 className="sr-only">Today</h1>
-              <SummarySentence view={view} />
-              <AttentionList view={view} />
-              <RoutineBar view={view} variant="inline" />
+            <h1 className="sr-only">Today</h1>
+            <IndicatorList view={view} />
+            <div className="mt-2 border-t border-border">
+              <RoutineList view={view} />
             </div>
-            <IndicatorList view={view} showTitle={false} />
           </>
         )}
-        {tab === "body" && <FigureColumn view={view} />}
+        {tab === "body" && <FigureColumn view={view} fill={false} />}
         {tab === "trends" && <Trends view={view} />}
         {tab === "more" && <More />}
         <Dialog open={detailOpen} onOpenChange={(o) => !o && closeDetail()} title={title} variant="page">
@@ -155,45 +152,42 @@ function Content() {
     );
   }
 
+  // With enough width the open sheet docks beside the figure instead of covering it.
+  const docked = layout === "tablet" && detailOpen && wide;
   return (
     <>
-      <RoutineBar view={view} />
-      {layout === "tablet" && (
-        <div className="flex items-center gap-4 border-b border-border px-4 py-2">
-          <SummarySentence view={view} className="min-w-0 flex-1" />
-          <Button onClick={openDetail}>Open</Button>
-        </div>
-      )}
-      <main className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_400px]">
+      <main className={clsx("grid min-h-0 flex-1 grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_400px]", docked && "pr-[440px]")}>
         <div className="min-h-0 overflow-y-auto border-r border-border">
           <IndicatorList view={view} />
+          <div className="mt-3 border-t border-border">
+            <RoutineList view={view} />
+          </div>
         </div>
-        <FigureColumn view={view} />
+        <FigureColumn view={view} fill />
         {layout === "desktop" && (
-          <aside aria-label="Details" className="min-h-0 space-y-3 overflow-y-auto py-4 pr-4">
-            <SummarySentence view={view} />
-            <AttentionList view={view} />
-            <div className="rounded-lg border border-border bg-card p-5">
-              <DetailBody view={view} />
-            </div>
+          <aside aria-label="Details" className="min-h-0 overflow-y-auto border-l border-border px-5 py-4">
+            <DetailBody view={view} />
           </aside>
         )}
       </main>
       {layout === "tablet" && (
         <Sheet open={detailOpen} onOpenChange={(o) => !o && closeDetail()} title="Details" description={title} scrim={false}>
-          <div className="pt-2">
-            <DetailBody view={view} />
-          </div>
+          <DetailBody view={view} />
         </Sheet>
       )}
     </>
   );
 }
 
+function Guard() {
+  const view = useCurrentHealth();
+  return view ? <Content view={view} /> : null;
+}
+
 export default function MyHealth() {
   return (
-    <AppShell fixed>
-      <Content />
+    <AppShell fixed strip>
+      <Guard />
     </AppShell>
   );
 }

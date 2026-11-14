@@ -1,9 +1,10 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Indicator detail (ui.md 5.3). Order: status, number, action, trend, explanation.
+// No card: the panel is a column, and sections are separated by space and hairlines.
 import clsx from "clsx";
 import { ChevronDown, Lock } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { GUIDANCE, formatClock, statusLine, type ChartWindow, type IndicatorKey } from "@missionvitals/shared";
+import { GUIDANCE, formatClock, missionDay, statusLine, type ChartWindow, type IndicatorKey } from "@missionvitals/shared";
 import type { HealthView } from "../../data/health";
 import { useUi } from "../../state/ui";
 import { IndicatorChart } from "../charts/IndicatorChart";
@@ -12,18 +13,18 @@ import { StatusBadge } from "../status/StatusBadge";
 import { STATUS_TEXT } from "../status/statusStyles";
 import { Button } from "../ui/Button";
 import { Tabs } from "../ui/Tabs";
-import { AlertBlock } from "./AlertBlock";
 import { EscalationLevels, type EscalationLevel } from "./EscalationLevels";
-import { Steps, WhatToDo } from "./WhatToDo";
+import { ResponsePlan } from "./ResponsePlan";
+import { Steps } from "./WhatToDo";
 
 export function Collapsible({ title, children }: { title: string; children: ReactNode }) {
   return (
     <details className="border-t border-border">
-      <summary className="flex min-h-12 items-center justify-between gap-3 type-small font-semibold">
+      <summary className="flex min-h-10 items-center justify-between gap-3 type-small font-medium max-xl:min-h-12">
         {title}
         <ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" className="chev shrink-0 text-muted-foreground transition-transform duration-[120ms]" />
       </summary>
-      <div className="pb-4">{children}</div>
+      <div className="pb-3">{children}</div>
     </details>
   );
 }
@@ -40,12 +41,26 @@ export function HazardTags({ hazards }: { hazards: string[] }) {
   );
 }
 
-const SOURCE_LINE = { live: "From your shirt", entered: "Entered by you", habitat: "From the habitat dosimeter" };
+/** A row of facts: label on the left, value on the right, hairline between rows. */
+export function Facts({ rows }: { rows: [string, ReactNode][] }) {
+  return (
+    <dl className="divide-y divide-border border-y border-border type-small">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline justify-between gap-4 py-1.5">
+          <dt className="shrink-0 text-muted-foreground">{label}</dt>
+          <dd className="min-w-0 text-right font-medium">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const SOURCE_WORD = { live: "Shirt", entered: "Entered by you", habitat: "Habitat dosimeter" };
 
 export function IndicatorDetail({ view, indicator }: { view: HealthView; indicator: IndicatorKey }) {
   const { startProcedure } = useUi();
   const state = view.indicators[indicator];
-  const { def, status, latest, valueText } = state;
+  const { def, status, latest, valueText, ev } = state;
   const g = GUIDANCE[indicator];
   const Icon = INDICATOR_ICON[indicator];
   const entered = def.source === "entered";
@@ -53,54 +68,57 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
   const alert = view.alerts.find((a) => a.indicator === indicator);
   const level: EscalationLevel =
     status === "warning" ? "surgeon" : status === "caution" && alert?.actions.some((a) => a.kind === "remeasured" || a.kind === "contacted-cmo") ? "cmo" : "self";
+  const unit = indicator === "mood" ? "" : ` ${def.unit}`;
+
+  const facts: [string, ReactNode][] = [["Demo range", def.rangeText]];
+  if (state.recentRange) facts.push([entered ? "Last 7 days" : "Last hour", `${state.recentRange}${unit}`]);
+  if (!entered && ev.since !== undefined && (status === "caution" || status === "warning")) facts.push(["Out of range since", `${formatClock(ev.since)} MET`]);
+  if (valueText && latest) facts.push(["Source", `${SOURCE_WORD[def.source]}, ${formatClock(latest.t)} MET`]);
+  else if (latest) facts.push(["Last reading", `Day ${missionDay(latest.t)}, ${formatClock(latest.t)} MET`]);
+  else facts.push(["Source", SOURCE_WORD[def.source]]);
 
   return (
-    <article aria-label={def.name} className="space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="min-w-0">
-          <h2 className="flex items-center gap-2 type-section">
+    <article aria-label={def.name} className="space-y-4">
+      <header>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="flex min-w-0 items-center gap-2 type-section">
             <Icon size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
             {def.name}
           </h2>
-          <StatusBadge status={status} className="mt-1 type-small" />
+          {entered && (
+            <Button size="sm" onClick={() => startProcedure({ kind: indicator, taskId: state.openTask?.task.id })}>
+              {valueText ? "Re-measure" : "Measure"}
+            </Button>
+          )}
         </div>
-        {entered && (
-          <Button onClick={() => startProcedure({ kind: indicator, taskId: state.openTask?.task.id })}>{valueText ? "Re-measure" : "Measure"}</Button>
-        )}
-      </header>
-
-      <div>
-        {valueText && latest ? (
-          <>
-            <p className="flex items-baseline gap-2">
-              <span key={valueText} className={clsx("fade-value type-value-xl", status === "ok" ? "text-foreground" : STATUS_TEXT[status])}>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+          {valueText && latest ? (
+            <p className="flex items-baseline gap-1.5">
+              <span key={valueText} className={clsx("fade-value type-value-xl", status === "ok" || status === "watch" ? "text-foreground" : STATUS_TEXT[status])}>
                 {valueText}
               </span>
               {indicator !== "mood" && <span className="type-label text-muted-foreground">{def.unit}</span>}
             </p>
-            <p className="mt-1 type-caption text-subtle-foreground">
-              {SOURCE_LINE[def.source]} at {formatClock(latest.t)} MET
-            </p>
-          </>
-        ) : (
-          <p className="type-summary text-nodata-text">No current reading</p>
-        )}
-        <p className="mt-2 max-w-[62ch] type-body">{statusLine(indicator, state.ev, view.now)}</p>
+          ) : (
+            <p className="type-summary text-nodata-text">No current reading</p>
+          )}
+          <StatusBadge status={status} className="pb-1.5 type-small" />
+        </div>
+        <p className="mt-1.5 max-w-[62ch] type-small">{statusLine(indicator, ev, view.now)}</p>
         {indicator === "mood" && (
-          <p className="mt-2 flex items-center gap-1.5 type-caption text-subtle-foreground">
+          <p className="mt-1.5 flex items-center gap-1.5 type-caption text-subtle-foreground">
             <Lock size={14} strokeWidth={1.5} aria-hidden="true" />
             Private. Only you and the crew medical officer see this.
           </p>
         )}
-      </div>
+      </header>
 
-      {alert && <AlertBlock alert={alert} />}
-      <WhatToDo steps={g.whatToDo[status]} />
-      <EscalationLevels escalation={g.escalation} current={level} />
+      <Facts rows={facts} />
+      <ResponsePlan view={view} indicator={indicator} />
 
       <section>
         <div className="flex items-center justify-between gap-3">
-          <h3 className="type-section">Trend</h3>
+          <h3 className="type-small font-semibold">Trend</h3>
           <Tabs
             label="Chart period"
             value={win}
@@ -113,8 +131,10 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
             ]}
           />
         </div>
-        <IndicatorChart astronautId={view.astronaut.id} indicator={indicator} window={win} alert={alert} />
+        <IndicatorChart astronautId={view.astronaut.id} indicator={indicator} window={win} alert={alert} height={160} />
       </section>
+
+      <EscalationLevels escalation={g.escalation} current={level} />
 
       <div>
         <Collapsible title="Why it changes in space">
@@ -148,14 +168,14 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
         </Collapsible>
       </div>
 
-      <footer className="type-caption text-subtle-foreground">
+      <footer className="border-t border-border pt-3 type-caption text-subtle-foreground">
         <p>{g.whatItIs} Demo thresholds, simulated data. Not medical advice.</p>
         <p className="mt-1">
           Sources:{" "}
           {g.sources.map((s, i) => (
             <span key={s.url}>
               {i > 0 && ", "}
-              <a className="text-link underline underline-offset-2" href={s.url} target="_blank" rel="noreferrer">
+              <a className="underline underline-offset-2 hover:text-foreground" href={s.url} target="_blank" rel="noreferrer">
                 {s.label}
               </a>
             </span>

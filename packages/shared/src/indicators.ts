@@ -10,6 +10,8 @@ export interface IndicatorDef {
   name: string;
   /** Lower-case name for use inside sentences. */
   phrase: string;
+  /** Short name for callouts on the body figure. */
+  short: string;
   unit: string;
   source: IndicatorSource;
   device: DeviceId;
@@ -31,6 +33,7 @@ export interface IndicatorDef {
 export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   hr: {
     key: "hr",
+    short: "HR",
     name: "Heart rate",
     phrase: "heart rate",
     unit: "bpm",
@@ -48,6 +51,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   },
   spo2: {
     key: "spo2",
+    short: "SpO₂",
     name: "SpO₂",
     phrase: "SpO₂",
     unit: "%",
@@ -64,6 +68,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   },
   temp: {
     key: "temp",
+    short: "Temp",
     name: "Temperature",
     phrase: "temperature",
     unit: "°C",
@@ -81,6 +86,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   },
   bp: {
     key: "bp",
+    short: "BP",
     name: "Blood pressure",
     phrase: "blood pressure",
     unit: "mmHg",
@@ -102,6 +108,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   },
   glucose: {
     key: "glucose",
+    short: "Glucose",
     name: "Blood glucose",
     phrase: "blood glucose",
     unit: "mg/dL",
@@ -119,6 +126,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   },
   sleep: {
     key: "sleep",
+    short: "Sleep",
     name: "Sleep",
     phrase: "sleep",
     unit: "h",
@@ -135,6 +143,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   },
   mood: {
     key: "mood",
+    short: "Mood",
     name: "Mood",
     phrase: "mood",
     unit: "of 5",
@@ -151,6 +160,7 @@ export const INDICATORS: Record<IndicatorKey, IndicatorDef> = {
   },
   radiation: {
     key: "radiation",
+    short: "Dose",
     name: "Habitat radiation",
     phrase: "habitat radiation",
     unit: "µGy/h",

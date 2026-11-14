@@ -332,6 +332,9 @@ export class MockSource implements DataSource {
     const open = routineEntries(ROUTINE, done, now).filter((e) => e.task.kind === indicator && (e.state.kind === "due" || e.state.kind === "overdue"));
     const task = open.find((e) => e.task.id === taskId) ?? open[0];
     if (task) done[task.task.id] = now;
+    // A new reading taken during an alert is the "re-measure" step, so it goes in that alert's log.
+    const alert = this.alerts.find((x) => x.astronautId === astronautId && x.indicator === indicator && !x.resolved);
+    if (alert) alert.actions = [...alert.actions, { t: now, kind: "remeasured" }];
     this.changed();
     return r;
   }

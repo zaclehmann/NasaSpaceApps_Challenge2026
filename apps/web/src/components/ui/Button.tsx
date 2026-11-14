@@ -1,5 +1,7 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// Buttons (ui.md 8): primary, secondary, text. 40 px on desktop, 48 px on tablet and phone.
+// Buttons (ui.md 8): primary, secondary, text.
+// md: 40 px on desktop, 48 px on tablet and phone. sm: a compact 32 px button whose touch target
+// still reaches 48 px on tablet and phone, through an invisible extension above and below.
 import clsx from "clsx";
 import type { ButtonHTMLAttributes, Ref } from "react";
 
@@ -12,9 +14,9 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground px-4 hover:opacity-85",
-  secondary: "bg-card text-foreground border border-border px-4 hover:bg-muted",
-  text: "text-foreground px-1 hover:underline underline-offset-4",
+  primary: "bg-primary text-primary-foreground hover:opacity-85",
+  secondary: "bg-card text-foreground border border-border hover:bg-muted",
+  text: "text-foreground hover:underline underline-offset-4",
 };
 
 export function Button({ variant = "secondary", size = "md", className, type = "button", ...rest }: Props) {
@@ -22,10 +24,10 @@ export function Button({ variant = "secondary", size = "md", className, type = "
     <button
       type={type}
       className={clsx(
-        "inline-flex shrink-0 items-center justify-center gap-2 rounded-md type-small font-medium whitespace-nowrap transition-colors duration-[120ms]",
+        "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap transition-colors duration-[120ms]",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        size === "md" ? "min-h-12 xl:min-h-10" : "min-h-12 xl:min-h-8",
-        size === "sm" && variant !== "text" && "px-3",
+        size === "md" ? "min-h-12 type-small xl:min-h-10" : "h-8 type-small max-xl:h-9 max-xl:before:absolute max-xl:before:inset-x-0 max-xl:before:-inset-y-1.5 max-xl:before:content-['']",
+        variant === "text" ? "px-1" : size === "md" ? "px-4" : "px-3",
         VARIANT[variant],
         className,
       )}

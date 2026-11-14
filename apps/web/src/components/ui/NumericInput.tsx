@@ -31,12 +31,12 @@ export function NumericInput({ label, unit, value, onChange, error, autoFocus }:
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errId : undefined}
           className={clsx(
-            "h-16 w-full rounded-md border bg-card pl-4 pr-20 text-[28px] leading-9 font-semibold tabular-nums text-foreground outline-none",
+            "h-14 w-full rounded-md border bg-card pl-3.5 pr-16 text-[28px] leading-9 font-semibold tabular-nums text-foreground outline-none",
             "focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring",
             error ? "border-warning" : "border-input",
           )}
         />
-        <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center type-label text-muted-foreground">{unit}</span>
+        <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center type-label text-muted-foreground">{unit}</span>
       </div>
       {error && (
         <p id={errId} className="type-small text-warning-text">

@@ -11,16 +11,17 @@ export default function CrewPicker() {
   const crew = useCrewHealth();
   return (
     <div className="min-h-dvh bg-background">
-      <header className="flex h-14 items-center justify-between gap-4 border-b border-border px-4 type-small md:px-6">
+      <header className="flex h-12 items-center justify-between gap-4 border-b border-border px-4 type-small md:px-6">
         <span className="type-body font-semibold">MissionVitals</span>
         <span className="flex gap-4 whitespace-nowrap">
           <span className="max-sm:hidden">{mission.name}</span>
           <span className="text-muted-foreground">Mission day {missionDay(mission.met)}</span>
         </span>
       </header>
-      <main className="mx-auto max-w-[760px] px-4 py-12 md:px-6">
+      <main className="mx-auto max-w-[760px] px-4 pt-[14vh] pb-12 md:px-6">
         <h1 className="type-title">Who's checking in?</h1>
-        <ul className="mt-6 divide-y divide-border">
+        <p className="mt-1 type-small text-muted-foreground">Choose your name to open your health checks. No password on the crew tablet.</p>
+        <ul className="mt-6 divide-y divide-border border-y border-border">
           {crew.map((v) => (
             <li key={v.astronaut.id}>
               <button

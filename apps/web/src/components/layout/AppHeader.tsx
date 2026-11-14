@@ -1,5 +1,6 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
-// Header, 56 px (ui.md 5.2): separate items divided by spacing and vertical hairlines, never joined with dots.
+// Header, 48 px: product and pages on the left, mission facts and the astronaut on the right.
+// Separate items divided by spacing and hairlines, never joined with dots (ui.md 2).
 import * as Popover from "@radix-ui/react-popover";
 import clsx from "clsx";
 import { Menu } from "lucide-react";
@@ -17,7 +18,7 @@ const NAV = [
   { to: "/methodology", label: "Methodology" },
 ];
 
-const Rule = ({ className }: { className?: string }) => <span aria-hidden="true" className={clsx("h-6 w-px shrink-0 bg-border", className)} />;
+const Rule = ({ className }: { className?: string }) => <span aria-hidden="true" className={clsx("h-5 w-px shrink-0 bg-border", className)} />;
 
 export function EarthLinkStatus({ className }: { className?: string }) {
   const { source } = useData();
@@ -34,19 +35,9 @@ export function EarthLinkStatus({ className }: { className?: string }) {
   );
 }
 
-export function MissionBlock({ className }: { className?: string }) {
-  const mission = useMission();
-  return (
-    <div className={clsx("items-center gap-4 whitespace-nowrap", className)}>
-      <span className="max-lg:hidden">{mission.name}</span>
-      <span className="text-muted-foreground">Mission day {missionDay(mission.met)}</span>
-      <span className="text-muted-foreground max-lg:hidden">MET {formatMet(mission.met)}</span>
-    </div>
-  );
-}
-
 export function AppHeader() {
   const astronaut = useAstronaut();
+  const mission = useMission();
   const { setAstronautId } = useData();
   const { setDemoOpen, resetSelection } = useUi();
   const navigate = useNavigate();
@@ -55,52 +46,59 @@ export function AppHeader() {
     setAstronautId(null);
     navigate("/");
   };
-  const linkClass = ({ isActive }: { isActive: boolean }) =>
-    clsx("flex h-14 items-center border-b-2 px-1", isActive ? "border-foreground font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground");
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-background px-4 type-small">
+    <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-background px-4 type-small">
       <Link to="/" className="flex h-12 items-center type-body font-semibold max-md:hidden">
         MissionVitals
       </Link>
-      <Rule className="max-md:hidden" />
-      <MissionBlock className="flex max-md:hidden" />
-      <Rule className="max-md:hidden" />
+      <nav aria-label="Main" className="flex h-12 items-stretch gap-4 max-xl:hidden">
+        {NAV.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end
+            className={({ isActive }) => clsx("flex items-center border-b-2 px-0.5", isActive ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+          >
+            {n.label}
+          </NavLink>
+        ))}
+      </nav>
+      <Popover.Root>
+        <Popover.Trigger className="flex size-12 items-center justify-center rounded-md hover:bg-muted max-md:hidden xl:hidden" aria-label="Pages">
+          <Menu size={20} strokeWidth={1.5} aria-hidden="true" />
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content align="start" sideOffset={4} className="z-50 w-56 rounded-lg bg-card p-2 text-foreground shadow-float outline-none">
+            <nav aria-label="Main" className="flex flex-col">
+              {NAV.map((n) => (
+                <Popover.Close asChild key={n.to}>
+                  <NavLink to={n.to} end className={({ isActive }) => clsx("flex min-h-12 items-center rounded-md px-3 type-small hover:bg-muted", isActive && "font-semibold")}>
+                    {n.label}
+                  </NavLink>
+                </Popover.Close>
+              ))}
+            </nav>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+
       {astronaut && <span className="font-medium md:hidden">{astronaut.name}</span>}
-      <EarthLinkStatus className="max-md:ml-auto" />
-      <div className="ml-auto flex items-center gap-3 max-md:hidden">
-        <nav aria-label="Main" className="flex items-center gap-4 max-xl:hidden">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end className={linkClass}>
-              {n.label}
-            </NavLink>
-          ))}
-        </nav>
-        <Popover.Root>
-          <Popover.Trigger className="flex size-12 items-center justify-center rounded-md hover:bg-muted xl:hidden" aria-label="Menu">
-            <Menu size={20} strokeWidth={1.5} aria-hidden="true" />
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content align="end" sideOffset={4} className="z-50 w-56 rounded-lg bg-card p-2 text-foreground shadow-float outline-none">
-              <nav aria-label="Main" className="flex flex-col">
-                {NAV.map((n) => (
-                  <Popover.Close asChild key={n.to}>
-                    <NavLink to={n.to} end className={({ isActive }) => clsx("flex min-h-12 items-center rounded-md px-3 type-small hover:bg-muted", isActive && "font-semibold")}>
-                      {n.label}
-                    </NavLink>
-                  </Popover.Close>
-                ))}
-              </nav>
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
-        <Rule />
-        {astronaut && <span className="font-medium whitespace-nowrap">{astronaut.name}</span>}
-        <Button variant="text" size="sm" onClick={switchAstronaut}>
-          Switch
-        </Button>
-        <Button size="sm" onClick={() => setDemoOpen(true)}>
-          Demo
-        </Button>
+      <div className="ml-auto flex items-center gap-4">
+        <span className="whitespace-nowrap max-lg:hidden">{mission.name}</span>
+        <span className="whitespace-nowrap text-muted-foreground max-md:hidden">Mission day {missionDay(mission.met)}</span>
+        <span className="whitespace-nowrap text-muted-foreground max-lg:hidden">MET {formatMet(mission.met)}</span>
+        <Rule className="max-md:hidden" />
+        <EarthLinkStatus />
+        <Rule className="max-md:hidden" />
+        <div className="flex items-center gap-3 max-md:hidden">
+          {astronaut && <span className="font-medium whitespace-nowrap">{astronaut.name}</span>}
+          <Button variant="text" size="sm" className="text-muted-foreground" onClick={switchAstronaut}>
+            Switch
+          </Button>
+          <Button variant="text" size="sm" className="text-muted-foreground" onClick={() => setDemoOpen(true)}>
+            Demo
+          </Button>
+        </div>
       </div>
     </header>
   );

@@ -24,7 +24,12 @@ export function Sheet({ open, onOpenChange, title, description, scrim = true, fo
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         <RD.Overlay className={clsx("fixed inset-0 z-40", scrim && "anim-scrim bg-scrim")} />
-        <RD.Content onCloseAutoFocus={returnFocus} className="anim-sheet fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col bg-card text-foreground shadow-float outline-none sm:rounded-l-xl">
+        <RD.Content onCloseAutoFocus={returnFocus}
+          onOpenAutoFocus={(e) => {
+            // Focus the panel itself, not its close button, so nothing looks selected on open.
+            e.preventDefault();
+            (e.currentTarget as HTMLElement).focus();
+          }} className="anim-sheet fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col bg-card text-foreground shadow-float outline-none sm:rounded-l-xl">
           <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
             <div className="min-w-0">
               <RD.Title className="type-section">{title}</RD.Title>

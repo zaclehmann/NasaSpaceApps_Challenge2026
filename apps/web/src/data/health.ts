@@ -4,6 +4,7 @@ import {
   INDICATORS,
   INDICATOR_KEYS,
   REGIONS,
+  classify,
   evaluate,
   formatValue,
   startOfDay,
@@ -12,6 +13,7 @@ import {
   type Alert,
   type Astronaut,
   type Evaluation,
+  type Level,
   type IndicatorDef,
   type IndicatorKey,
   type Reading,
@@ -34,6 +36,49 @@ export interface IndicatorState {
   arrow: TrendArrow;
   /** The open routine task for this indicator, if one is due or overdue. */
   openTask?: RoutineEntry;
+  /** A short series for the row sparkline: the last hour for live sources, recent entries for entered ones. */
+  spark: SparkPoint[];
+  /** Lowest and highest value in that same period, as text without the unit. */
+  recentRange: string | null;
+}
+
+export interface SparkPoint {
+  t: number;
+  v: number;
+  level: Level;
+}
+
+const SPARK_BUCKETS = 40;
+
+function buildSpark(key: IndicatorKey, readings: readonly Reading[], entered: boolean): SparkPoint[] {
+  if (entered) {
+    const from = Math.max(0, readings.length - 14);
+    return readings.slice(from).map((r, i) => ({ t: r.t, v: r.value, level: classify(key, readings, from + i).level }));
+  }
+  if (readings.length <= SPARK_BUCKETS) return readings.map((r) => ({ t: r.t, v: r.value, level: classify(key, [r]).level }));
+  const out: SparkPoint[] = [];
+  const size = readings.length / SPARK_BUCKETS;
+  for (let b = 0; b < SPARK_BUCKETS; b++) {
+    const slice = readings.slice(Math.floor(b * size), Math.floor((b + 1) * size));
+    if (!slice.length) continue;
+    const v = slice.reduce((a, r) => a + r.value, 0) / slice.length;
+    out.push({ t: slice[slice.length - 1].t, v, level: classify(key, [{ ...slice[0], value: v }]).level });
+  }
+  return out;
+}
+
+function buildRange(key: IndicatorKey, readings: readonly Reading[], entered: boolean, now: number): string | null {
+  const recent = entered ? readings.filter((r) => r.t >= now - 7 * 86400) : readings;
+  if (!recent.length) return null;
+  if (key === "bp") {
+    const sys = recent.map((r) => r.value);
+    const dia = recent.map((r) => r.value2 ?? r.value);
+    return `${Math.min(...sys)}/${Math.min(...dia)} to ${Math.max(...sys)}/${Math.max(...dia)}`;
+  }
+  const vs = recent.map((r) => r.value);
+  const lo = formatValue(key, Math.min(...vs));
+  const hi = formatValue(key, Math.max(...vs));
+  return lo === hi ? lo : `${lo} to ${hi}`;
 }
 
 export interface HealthView {
@@ -71,6 +116,8 @@ export function buildHealth(source: DataSource, astronaut: Astronaut): HealthVie
       valueText: current && latest ? formatValue(key, latest.value, latest.value2) : null,
       arrow: current ? trendArrow(key, readings, now) : "flat",
       openTask,
+      spark: buildSpark(key, readings, entered),
+      recentRange: buildRange(key, readings, entered, now),
     };
     if (entered && latest && latest.t >= startOfDay(now) && (lastCheckIn === undefined || latest.t > lastCheckIn)) lastCheckIn = latest.t;
   }
