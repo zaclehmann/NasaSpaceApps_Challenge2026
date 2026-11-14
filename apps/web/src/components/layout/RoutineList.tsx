@@ -35,13 +35,14 @@ export function taskStatusText(e: RoutineEntry, _now?: number): string {
  * Start is the primary (black) button. Due now also offers Postpone as a secondary button.
  * No status-coloured fills and no pulsing: status colour is only for status (ui.md 3.3).
  */
-export function TaskActions({ e }: { e: RoutineEntry }) {
+/** Postpone and Start. `startOnlyOnPhone`: the phone status strip has room for Start alone. */
+export function TaskActions({ e, startOnlyOnPhone = false }: { e: RoutineEntry; startOnlyOnPhone?: boolean }) {
   const { startProcedure, setPostponeTaskId } = useUi();
   const due = e.state.kind === "due";
   return (
     <span className="inline-flex items-center gap-2">
       {due && (
-        <Button size="sm" variant="secondary" onClick={() => setPostponeTaskId(e.task.id)}>
+        <Button size="sm" variant="secondary" className={startOnlyOnPhone ? "max-md:hidden" : undefined} onClick={() => setPostponeTaskId(e.task.id)}>
           Postpone
         </Button>
       )}

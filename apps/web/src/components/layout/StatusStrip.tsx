@@ -3,7 +3,8 @@
 // An unacknowledged Warning turns the strip into the Warning bar (ui.md 5.6): tint, red rule, View.
 // Nothing is said twice. A check that is due now shows a red Postpone and a green Start that pulses.
 // The alarm that goes with it is rung from the app shell (RoutineAlarm), so it sounds on every page.
-// "Routine" opens today's full routine as a page.
+// "Routine" opens today's full routine as a page. On phone the strip keeps only Start; Routine and
+// Symptoms move to the More tab.
 import clsx from "clsx";
 import { ListChecks, Stethoscope } from "lucide-react";
 import { Fragment } from "react";
@@ -62,13 +63,13 @@ export function StatusStrip({ view, routine }: { view: HealthView; routine: bool
       {routine && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="type-small text-muted-foreground">{next ? `Next check: ${lower(next.task.label)}, ${lower(taskStatusText(next, view.now))}` : "Today's checks are done"}</span>
-          {canStart && next && <TaskActions e={next} />}
-          <span aria-hidden="true" className="h-5 w-px bg-border max-sm:hidden" />
-          <Button size="sm" variant="secondary" onClick={() => setRoutineOpen(true)}>
+          {canStart && next && <TaskActions e={next} startOnlyOnPhone />}
+          <span aria-hidden="true" className="h-5 w-px bg-border max-md:hidden" />
+          <Button size="sm" variant="secondary" className="max-md:hidden" onClick={() => setRoutineOpen(true)}>
             <ListChecks size={16} strokeWidth={1.5} aria-hidden="true" />
             Routine
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setSymptomsOpen(true)}>
+          <Button size="sm" variant="secondary" className="max-md:hidden" onClick={() => setSymptomsOpen(true)}>
             <Stethoscope size={16} strokeWidth={1.5} aria-hidden="true" />
             Symptoms
           </Button>

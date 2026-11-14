@@ -76,7 +76,7 @@ function Trends({ view }: { view: HealthView }) {
 }
 
 function More() {
-  const { setDemoOpen, resetSelection } = useUi();
+  const { setDemoOpen, resetSelection, setRoutineOpen, setSymptomsOpen } = useUi();
   const { setAstronautId } = useData();
   const navigate = useNavigate();
   const row = "flex min-h-12 w-full items-center px-4 text-left type-body hover:bg-muted";
@@ -84,6 +84,17 @@ function More() {
     <section aria-label="More" className="py-4">
       <h1 className="px-4 type-section">More</h1>
       <ul className="mt-3 divide-y divide-border border-y border-border">
+        {/* On phone the status strip keeps only Start, so the routine and symptoms live here. */}
+        <li>
+          <button type="button" className={row} onClick={() => setRoutineOpen(true)}>
+            Today's routine
+          </button>
+        </li>
+        <li>
+          <button type="button" className={row} onClick={() => setSymptomsOpen(true)}>
+            Symptoms
+          </button>
+        </li>
         <li>
           <Link to="/crew" className={row}>
             Crew overview
