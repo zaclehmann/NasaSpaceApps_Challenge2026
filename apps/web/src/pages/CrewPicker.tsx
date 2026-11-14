@@ -1,12 +1,11 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Crew picker (ui.md 5.1): one click or tap, no password. Health shows as badge and word only, no values (privacy).
 // A crew roster: one line of summary, then a row per person with their status, what is next and when
-// they last checked in. A row whose check is due now blinks and the
-// routine alarm rings.
+// they last checked in. "Due now" is plain text: no tint, bar, dot or blinking (ui.md 3.3: status colour
+// is for status only, and a check that is simply due is not a fault).
 // Works the same with a mouse, a keyboard and touch: the whole row is one target, Up and Down move
 // between people, Enter opens. Nothing depends on hover.
 import clsx from "clsx";
-import { ChevronRight } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { formatClock, missionDay, nextTask, type RoutineEntry } from "@missionvitals/shared";
@@ -38,8 +37,7 @@ function NextCheck({ e, now }: { e: RoutineEntry | undefined; now: number }) {
   return (
     <span className="flex min-w-0 flex-col">
       <span className={clsx("truncate type-small text-foreground", (k === "due" || k === "overdue") && "font-medium")}>{e.task.label}</span>
-      <span className={clsx("flex items-center gap-1.5 type-caption tabular-nums", k === "due" ? "font-medium text-warning-text" : k === "overdue" ? "text-watch-text" : "text-muted-foreground")}>
-        {k === "due" && <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />}
+      <span className={clsx("flex items-center gap-1.5 type-caption tabular-nums", k === "due" ? "font-medium text-foreground" : k === "overdue" ? "text-watch-text" : "text-muted-foreground")}>
         {k === "overdue" && <BadgeIcon status="watch" size={12} />}
         {nextWhen(e, now)}
       </span>
@@ -66,7 +64,7 @@ function summary(crew: HealthView[]): string {
   return parts.join(" ");
 }
 
-const COLS = "md:grid-cols-[minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(200px,1.4fr)_minmax(110px,0.8fr)_16px]";
+const COLS = "md:grid-cols-[minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(200px,1.4fr)_minmax(110px,0.8fr)]";
 
 export default function CrewPicker() {
   const { setAstronautId } = useData();
@@ -109,12 +107,10 @@ export default function CrewPicker() {
             <span>Status</span>
             <span>Next check</span>
             <span>Last check-in</span>
-            <span />
           </div>
           <ul ref={list} className="divide-y divide-border">
             {crew.map((v) => {
               const next = nextTask(v.routine.entries);
-              const dueNow = next?.state.kind === "due";
               const open = v.alerts.filter((a) => !a.acknowledged).length;
               const last = v.lastCheckIn;
               return (
@@ -128,7 +124,6 @@ export default function CrewPicker() {
                     className={clsx(
                       "group grid min-h-[72px] w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-5 gap-y-2 px-4 py-3 text-left transition-colors duration-[120ms] hover:bg-muted focus-visible:-outline-offset-2",
                       COLS,
-                      dueNow && "anim-row-alert",
                     )}
                   >
                     <span className="flex min-w-0 flex-col">
@@ -145,7 +140,6 @@ export default function CrewPicker() {
                     </span>
                     <NextCheck e={next} now={now} />
                     <span className="type-small text-muted-foreground tabular-nums max-md:text-right">{last ? (now - last < 60 ? "Just now" : `${span(now - last)} ago`) : "None today"}</span>
-                    <ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" className="text-subtle-foreground transition-transform duration-[120ms] group-hover:translate-x-0.5 max-md:hidden" />
                   </button>
                 </li>
               );

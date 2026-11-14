@@ -67,12 +67,6 @@
 @keyframes mv-page-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 .anim-page { animation: mv-page-in 180ms ease-out; }
 
-/* A crew picker row whose routine check is due now: the whole row blinks. Reduced motion keeps the tint. */
-@keyframes mv-row-alert {
-  0%, 100% { background-color: color-mix(in oklab, var(--warning) 26%, transparent); }
-  50% { background-color: var(--warning-tint); }
-}
-.anim-row-alert { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); animation: mv-row-alert 1s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
