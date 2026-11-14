@@ -8,6 +8,7 @@ import type {
   ChartWindow,
   IndicatorKey,
   Mission,
+  MissionSettingId,
   NewSymptom,
   Reading,
   Report,
@@ -51,5 +52,6 @@ export interface DataSource {
   getDownlinkQueue(): Report[];
   setScenario(scenario: ScenarioId, astronautId: string): void;
   setEarthLink(up: boolean): void;
+  setMissionSetting(setting: MissionSettingId): void;
   setSleepPeriod(on: boolean): void;
 }

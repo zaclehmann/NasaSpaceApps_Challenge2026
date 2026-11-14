@@ -96,8 +96,22 @@ export interface EarthLink {
   delaySec: number;
 }
 
+/** Where the mission is. Changes only the mission name and the Earth link delay (simulated values). */
+export type MissionSettingId = "mars-transit" | "station" | "lunar" | "mars-rover";
+
+export interface MissionSetting {
+  id: MissionSettingId;
+  /** Shown in the Demo sheet. */
+  label: string;
+  /** Shown in the header. */
+  missionName: string;
+  /** One-way light-time delay to Earth, in seconds. */
+  delaySec: number;
+}
+
 export interface Mission {
   name: string;
+  setting: MissionSettingId;
   /** Current MET in seconds. */
   met: number;
   earthLink: EarthLink;

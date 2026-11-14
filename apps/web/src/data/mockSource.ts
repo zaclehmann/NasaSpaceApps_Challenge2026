@@ -4,6 +4,7 @@ import {
   DAY,
   INDICATORS,
   INDICATOR_KEYS,
+  MISSION_SETTINGS,
   POSTPONE_MIN,
   ROUTINE,
   WINDOW_SEC,
@@ -22,6 +23,8 @@ import {
   type Evaluation,
   type IndicatorKey,
   type Mission,
+  type MissionSetting,
+  type MissionSettingId,
   type Reading,
   type Report,
   type RoutineSummary,
@@ -145,6 +148,7 @@ export class MockSource implements DataSource {
   /** The scenario's story is told relative to this MET. */
   private anchor = MET_AT_LOAD;
   private linkUp = true;
+  private setting: MissionSettingId = "mars-transit";
   private sleepPeriod = false;
 
   private manual: Record<string, Record<string, Reading[]>> = {};
@@ -310,9 +314,10 @@ export class MockSource implements DataSource {
 
   getMission(): Mission {
     return {
-      name: "Ares Transit 1",
+      name: this.missionSetting().missionName,
+      setting: this.setting,
       met: this.now(),
-      earthLink: { up: this.linkUp, delaySec: 6 * 60 + 48 },
+      earthLink: { up: this.linkUp, delaySec: this.missionSetting().delaySec },
       sleepPeriod: this.sleepPeriod,
       scenario: this.scenario,
       scenarioTarget: this.target,
@@ -486,6 +491,15 @@ export class MockSource implements DataSource {
     this.emit();
   }
 
+  private missionSetting(): MissionSetting {
+    return MISSION_SETTINGS.find((m) => m.id === this.setting) ?? MISSION_SETTINGS[0];
+  }
+
+  setMissionSetting(setting: MissionSettingId): void {
+    this.setting = setting;
+    this.emit();
+  }
+
   setSleepPeriod(on: boolean): void {
     this.sleepPeriod = on;
     this.emit();
@@ -495,7 +509,7 @@ export class MockSource implements DataSource {
 
   private advanceReports() {
     const now = this.now();
-    const delay = 6 * 60 + 48;
+    const delay = this.missionSetting().delaySec;
     let dirty = false;
     const next = this.reports.map((r) => {
       if (r.state === "queued" && this.linkUp) {

@@ -1,6 +1,17 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Demo scenarios. They change the simulated data itself, not only the display.
-import type { Scenario } from "./types";
+import type { MissionSetting, Scenario } from "./types";
+
+/**
+ * Mission settings for the demo (the brief's "different environments"). Only the name and the one-way
+ * Earth link delay change; thresholds and data stay the same. Delays are typical simulated values.
+ */
+export const MISSION_SETTINGS: MissionSetting[] = [
+  { id: "mars-transit", label: "Mars transit", missionName: "Ares Transit 1", delaySec: 6 * 60 + 48 },
+  { id: "station", label: "Space station", missionName: "Station Expedition 74", delaySec: 0.3 },
+  { id: "lunar", label: "Lunar base", missionName: "Artemis Base Camp", delaySec: 1.3 },
+  { id: "mars-rover", label: "Mars rover", missionName: "Rover Excursion 3", delaySec: 6 * 60 + 48 },
+];
 
 export const SCENARIOS: Scenario[] = [
   { id: "normal", number: 1, name: "Normal day", description: "Everything in range. Mood check-in is due." },

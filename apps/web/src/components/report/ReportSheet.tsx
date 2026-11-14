@@ -54,9 +54,12 @@ function useReport(view: HealthView) {
     setReportOpen(false);
   };
 
+  const delay = mission.earthLink.delaySec;
   const delivery: ReactNode = mission.earthLink.up ? (
     <p className="type-small text-muted-foreground">
-      Arrives on Earth in about {formatDelay(mission.earthLink.delaySec)}. A reply takes at least {formatDuration(Math.floor((mission.earthLink.delaySec * 2) / 60) * 60)}.
+      {delay < 10
+        ? `Arrives on Earth in about ${formatDelay(delay)}, near real-time. A reply can come as soon as the flight surgeon answers.`
+        : `Arrives on Earth in about ${formatDelay(delay)}. A reply takes at least ${formatDuration(Math.floor((delay * 2) / 60) * 60)}.`}
     </p>
   ) : (
     <p className="flex items-start gap-2 type-small text-caution-text">

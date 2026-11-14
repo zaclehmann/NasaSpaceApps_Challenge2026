@@ -30,8 +30,9 @@ export function startOfDay(sec: number): number {
   return Math.floor(sec / DAY) * DAY;
 }
 
-/** "6 min 48 s" */
+/** "6 min 48 s", "1.3 s", "0.3 s" */
 export function formatDelay(sec: number): string {
+  if (sec < 10) return `${Number(sec.toFixed(1))} s`;
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
   return m > 0 ? `${m} min ${s} s` : `${s} s`;

@@ -55,6 +55,10 @@ function Content() {
           </li>
         ))}
       </ol>
+      <P>
+        The Mission setting in Demo controls (Mars transit, space station, lunar base, Mars rover) changes only the mission name and the simulated one-way Earth link delay: 6 min 48 s for Mars, about 1.3 s for the Moon
+        and about 0.3 s for a station in low Earth orbit. Thresholds and data stay the same.
+      </P>
 
       <H2>Status and alert rules</H2>
       <ul className="mt-3 space-y-2 type-small">
