@@ -133,7 +133,9 @@ export function BodyFigure({ view, leaders, partCallouts, layer, face, selectedP
   const whole = shown("whole");
   const wholeLit = lit("whole");
   const haloColor = wholeLit ? "var(--foreground)" : whole === "nodata" ? "var(--muted-foreground)" : whole && isAlerting(whole) ? STATUS_VAR[whole] : null;
-  const marked = REGIONS.filter((r) => !quiet(shown(r.id)));
+  // Badges sit on the figure for organ regions only. Whole body shows its status as the halo and beside its
+  // label; a badge at the end of its leader would land on a limb and read as a problem there.
+  const marked = REGIONS.filter((r) => r.id !== "whole" && !quiet(shown(r.id)));
   // Parts to outline: one with an active symptom, the one being pointed at, and the one whose page is open.
   const partStatus = (id: string): Status | undefined => view.parts[id];
   const edged = zones.filter((z) => partStatus(z.id) || z.id === hoverPart || z.id === selectedPart);
