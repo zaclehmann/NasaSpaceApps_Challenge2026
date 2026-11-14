@@ -276,6 +276,7 @@ Background tints (rows and body regions, Watch and above only):
 4. Worst state wins for a body region and for the overall summary.
 5. The status key (all five badges, words and meanings) is always one click away: the **Status key** item in the bottom status bar on tablet and desktop, and printed under the body figure on phone.
 6. The status word is always printed next to the badge. Never the badge alone.
+7. Exception: the routine Start (green) and Postpone (red) buttons use status colours on purpose, so a due check stands out; they never appear for indicator status.
 
 ### 3.4 Validator results (dataviz skill, `validate_palette.js`, all-pairs)
 

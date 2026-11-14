@@ -124,6 +124,7 @@ function Content() {
         Status is never colour alone: each state has its own shape and its word is always printed. The colours were still checked for people with colour-blindness, using an all-pairs ΔE check. The first red, orange, yellow
         and green proposal failed, so Watch became blue, which the medical alarm standard IEC 60601-1-8 allows for low priority.
       </P>
+      <P>{"Exception: the routine Start (green) and Postpone (red) buttons use status colours on purpose, so a due check stands out; they never appear for indicator status."}</P>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[640px] type-small">
           <thead className="bg-muted type-label text-muted-foreground">
