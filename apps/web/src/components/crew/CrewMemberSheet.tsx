@@ -16,10 +16,16 @@ import { STATUS_TEXT } from "../status/statusStyles";
 import { Sheet } from "../ui/Sheet";
 import { Tabs } from "../ui/Tabs";
 
-const flaggedOrder = (v: HealthView, open: boolean): IndicatorKey[] => {
-  const rank = { warning: 0, caution: 1, watch: 2, nodata: 3, due: 4, ok: 5 } as const;
-  return INDICATOR_KEYS.filter((k) => open || k !== "mood").sort((a, b) => rank[v.indicators[a].status] - rank[v.indicators[b].status]);
-};
+// Worst first: Warning, Caution, Watch, No data. Due and in range keep their usual order after those.
+const RANK = { warning: 0, caution: 1, watch: 2, nodata: 3, due: 4, ok: 4 } as const;
+const flaggedOrder = (v: HealthView, open: boolean): IndicatorKey[] =>
+  INDICATOR_KEYS.filter((k) => open || k !== "mood").sort((a, b) => RANK[v.indicators[a].status] - RANK[v.indicators[b].status]);
+
+/** The sheet opens on the worst reading; with everything in range, on heart rate. */
+function defaultKey(v: HealthView, keys: IndicatorKey[]): IndicatorKey {
+  const worst = keys[0];
+  return worst && RANK[v.indicators[worst].status] < 4 ? worst : "hr";
+}
 
 export function CrewMemberSheet({ view, focus, open, onClose, showPrivate }: { view: HealthView | null; focus?: IndicatorKey; open: boolean; onClose: () => void; showPrivate: boolean }) {
   return (
@@ -32,7 +38,7 @@ export function CrewMemberSheet({ view, focus, open, onClose, showPrivate }: { v
 function Body({ view, focus, showPrivate }: { view: HealthView; focus?: IndicatorKey; showPrivate: boolean }) {
   const { source } = useData();
   const keys = flaggedOrder(view, showPrivate);
-  const [key, setKey] = useState<IndicatorKey>(focus && keys.includes(focus) ? focus : keys[0]);
+  const [key, setKey] = useState<IndicatorKey>(focus && keys.includes(focus) ? focus : defaultKey(view, keys));
   const s = view.indicators[key];
   const entered = s.def.source === "entered";
   const [win, setWin] = useState<ChartWindow>(entered ? "7d" : "1h");
@@ -42,6 +48,9 @@ function Body({ view, focus, showPrivate }: { view: HealthView; focus?: Indicato
   const log = alert?.actions.filter((a) => a.kind !== "step") ?? [];
   const symptoms = showPrivate ? source.getSymptoms(view.astronaut.id).filter((x) => symptomStatus(x, view.now)) : [];
   const unit = key === "mood" ? "" : ` ${s.def.unit}`;
+  // Same rule as the main panel: a value on screen is never paired with "Due" or "Not taken yet".
+  const hideBadge = s.soFar || (s.status === "due" && Boolean(s.valueText));
+  const line = s.soFar ? "From the shirt. Not confirmed yet." : statusLine(key, s.ev, view.now);
 
   return (
     <div className="space-y-5 pt-1">
@@ -68,11 +77,11 @@ function Body({ view, focus, showPrivate }: { view: HealthView; focus?: Indicato
         <div className="flex items-end justify-between gap-3">
           <p className={clsx("text-[32px] leading-9 font-semibold", s.status === "ok" || s.status === "watch" || s.status === "due" ? "text-foreground" : STATUS_TEXT[s.status])}>
             {s.valueText ? `${s.valueText}` : "No reading"}
-            {s.valueText && <span className="ml-1 type-label font-medium text-muted-foreground">{unit}</span>}
+            {s.valueText && <span className="ml-1 type-label font-medium text-muted-foreground">{s.soFar ? `${unit} today so far` : unit}</span>}
           </p>
-          <StatusBadge status={s.status} className="pb-1 type-small" />
+          {!hideBadge && <StatusBadge status={s.status} className="pb-1 type-small" />}
         </div>
-        <p className="mt-1 type-small">{statusLine(key, s.ev, view.now)}</p>
+        <p className="mt-1 type-small">{line}</p>
         {alert && (
           <p className="mt-1 type-caption text-subtle-foreground">
             {alert.acknowledged ? `Acknowledged ${formatClock(alert.acknowledgedAt ?? alert.firedAt)} MET.` : "Not acknowledged yet."} Alert since {formatClock(alert.firedAt)} MET.
