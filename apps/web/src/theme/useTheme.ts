@@ -15,8 +15,8 @@ function read(): ThemeChoice {
   } catch {
     // Fall through to the default.
   }
-  // Dark by default: the crew tablet lives in a dim habitat. Light and System stay one tap away.
-  return "dark";
+  // System by default: follow the device. The sleep period still turns "system" dark (useApplyTheme).
+  return "system";
 }
 
 let current: ThemeChoice | undefined;
