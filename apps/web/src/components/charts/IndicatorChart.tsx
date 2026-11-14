@@ -187,7 +187,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
     ? `${def.name} over ${WINDOW_WORDS[win]}. Latest ${latest ? formatValue(indicator, latest.value, latest.value2) : ""}${indicator === "mood" ? "" : ` ${def.unit}`}, lowest ${formatValue(
         indicator === "bp" ? "hr" : indicator,
         Math.min(...values),
-      )}, highest ${formatValue(indicator === "bp" ? "hr" : indicator, Math.max(...values))}. Your range ${def.rangeText}.`
+      )}, highest ${formatValue(indicator === "bp" ? "hr" : indicator, Math.max(...values))}. Demo range ${def.rangeText}.`
     : `${def.name} over ${WINDOW_WORDS[win]}. No readings.`;
 
   const dotColor = (s: Status) => (s === "ok" ? "var(--foreground)" : STATUS_VAR[s]);
@@ -335,7 +335,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
     <figure className="min-w-0">
       <figcaption className="flex items-baseline justify-between gap-3">
         <span className="type-caption text-subtle-foreground">
-          {indicator === "mood" ? "1 Very low to 5 Very good" : indicator === "bp" ? "mmHg, diastolic to systolic" : def.unit}. Shaded: your range{indicator === "bp" ? ", systolic" : indicator === "glucose" ? ", fasting" : indicator === "exercise" ? " (target)" : ""}.
+          {indicator === "mood" ? "1 Very low to 5 Very good" : indicator === "bp" ? "mmHg, diastolic to systolic" : def.unit}. Shaded: demo range{indicator === "bp" ? ", systolic" : indicator === "glucose" ? ", fasting" : indicator === "exercise" ? " (target)" : ""}.
         </span>
         <Button variant="text" size="sm" aria-pressed={table} onClick={() => setTable((x) => !x)}>
           {table ? "View as chart" : "View as table"}

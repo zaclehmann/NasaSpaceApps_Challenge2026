@@ -128,6 +128,13 @@ function seedSymptoms(today: number): Symptom[] {
 
 /* ---------- the mock ---------- */
 
+/** Exercise session start times (minutes after midnight MET), morning and afternoon, per astronaut. */
+const SESSION_START: Record<string, [number, number]> = {
+  hana: [9 * 60, 13 * 60 + 30],
+  mira: [8 * 60 + 30, 12 * 60 + 50],
+  tomas: [10 * 60, 13 * 60 + 55],
+};
+
 export class MockSource implements DataSource {
   private wallStart = Date.now();
   private listeners = new Set<() => void>();
@@ -386,8 +393,10 @@ export class MockSource implements DataSource {
     if (confirmed) return confirmed.value;
     const b = BASE[astronautId];
     if (!b) return 0;
-    // Resistance from 09:00 for 60 min, aerobic from 13:30 for the rest of the usual daily total.
-    const sessions: [number, number][] = [[9 * 60, 60], [13 * 60 + 30, b.exercise - 60]];
+    // Resistance in the morning for 60 min, aerobic in the afternoon for the rest of the usual daily total.
+    // Each astronaut has their own slots, so the running totals differ.
+    const [am, pm] = SESSION_START[astronautId] ?? [9 * 60, 13 * 60 + 30];
+    const sessions: [number, number][] = [[am, 60], [pm, b.exercise - 60]];
     const minute = (now - day) / 60;
     return Math.round(sessions.reduce((sum, [start, len]) => sum + Math.max(0, Math.min(len, minute - start)), 0));
   }

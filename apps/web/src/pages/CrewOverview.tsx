@@ -20,6 +20,8 @@ import { useAstronaut, useCrew, useCrewHealth, useData, useMission } from "../da
 import type { HealthView } from "../data/health";
 
 const COLUMNS: IndicatorKey[] = ["hr", "spo2", "bp", "temp", "sleep", "exercise", "mood"];
+/** The wide table keeps the vitals so it fits at 1440 px. Temperature, sleep and exercise are in the crewmate detail. */
+const TABLE_COLUMNS: IndicatorKey[] = ["hr", "spo2", "bp", "mood"];
 
 function Cell({ view, k, canSeeMood }: { view: HealthView; k: IndicatorKey; canSeeMood: boolean }) {
   const s = view.indicators[k];
@@ -32,7 +34,8 @@ function Cell({ view, k, canSeeMood }: { view: HealthView; k: IndicatorKey; canS
     );
   }
   if (!s.valueText) return <span className="text-muted-foreground">{s.status === "due" ? "Due" : s.ev.reason === "silent" ? "No data" : "Not taken"}</span>;
-  const quiet = s.status === "ok";
+  // Due is a task, not a reading's status: the cell shows the value only (the routine column says what is due).
+  const quiet = s.status === "ok" || s.status === "due";
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       {!quiet && <BadgeIcon status={s.status} size={12} />}
@@ -191,7 +194,7 @@ function Content() {
           <table className="w-full type-small">
             <thead className="bg-muted type-label text-muted-foreground">
               <tr>
-                {["Name", "Overall", ...COLUMNS.map((k) => INDICATORS[k].name), "Symptoms", "Routine today", "Last check-in"].map((h) => (
+                {["Name", "Overall", ...TABLE_COLUMNS.map((k) => INDICATORS[k].name), "Symptoms", "Routine today", "Last check-in"].map((h) => (
                   <th key={h} scope="col" className="px-2.5 py-2.5 text-left font-medium whitespace-nowrap">
                     {h}
                   </th>
@@ -208,7 +211,7 @@ function Content() {
                   <td className="px-2.5 py-2">
                     <StatusBadge status={v.overall} />
                   </td>
-                  {COLUMNS.map((k) => (
+                  {TABLE_COLUMNS.map((k) => (
                     <td key={k} className="px-2.5 py-2 whitespace-nowrap">
                       <Cell view={v} k={k} canSeeMood={canSee(v)} />
                     </td>
@@ -267,7 +270,7 @@ function Content() {
                     {rad.status !== "ok" && <StatusBadge status={rad.status} className="type-caption" />}
                   </span>,
                 ],
-                ["Normal range", rad.def.rangeText],
+                ["Demo range", rad.def.rangeText],
                 ["Mission total, estimated", `${missionTotal.toFixed(1)} mGy`],
               ]}
             />

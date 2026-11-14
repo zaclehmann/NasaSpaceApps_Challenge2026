@@ -83,7 +83,7 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
   const unit = indicator === "mood" ? "" : ` ${def.unit}`;
   const measureLabel = indicator === "exercise" ? (soFar ? "Confirm" : "Correct") : valueText ? "Re-measure" : "Measure";
 
-  const facts: [string, ReactNode][] = [["Your range", def.rangeText]];
+  const facts: [string, ReactNode][] = [["Demo range", def.rangeText]];
   if (state.recentRange) facts.push([entered ? "Last 7 days" : "Last hour", `${state.recentRange}${unit}`]);
   if (!entered && ev.since !== undefined && (status === "caution" || status === "warning")) facts.push(["Out of range since", `${formatClock(ev.since)} MET`]);
   if (soFar) facts.push(["Source", `${def.sourceText}. Not confirmed yet`]);
@@ -134,7 +134,8 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
       title={def.name}
       icon={<Icon size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />}
       back={region ? { label: region.name, onClick: () => select({ kind: "region", id: region.id }) } : undefined}
-      status={<StatusBadge status={status} />}
+      // With no value, the summary already says when it is due ("Due now"), so the badge would repeat it.
+      status={status === "due" && !valueText ? undefined : <StatusBadge status={status} />}
       kicker={latest && valueText && !soFar ? `${formatClock(latest.t)} MET` : undefined}
       primary={primary}
       summary={summary}

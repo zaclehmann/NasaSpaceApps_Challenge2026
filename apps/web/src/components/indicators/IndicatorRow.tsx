@@ -40,13 +40,15 @@ export function IndicatorRow({ state, now, selected, linked, acknowledged }: Pro
   const { def, status, valueText, latest, openTask, key, soFar } = state;
   const Icon = INDICATOR_ICON[key];
   // A check that is simply due is a routine matter, not a fault: the row says so without a status mark.
-  const due = status === "due";
-  const flagged = status !== "ok" && !due;
+  // Exercise is a running total from the shirt: its line says where the number comes from, not the
+  // 16:00 confirm task (that lives in the routine list).
+  const due = status === "due" && !soFar;
+  const flagged = status !== "ok" && status !== "due";
   // Exercise has no button here: the shirt counts it, and the day's Confirm task lives in the routine list.
   const needsMeasure = def.source === "entered" && valueText === null && key !== "exercise";
   const beat = key === "hr" && valueText && latest ? { animation: `mv-beat ${(60 / Math.max(30, latest.value)).toFixed(2)}s ease-out infinite` } : undefined;
   // Exercise is counted by the shirt through the day: the source line says so, and the value reads "124 min today so far".
-  const time = key === "exercise" && valueText ? "From shirt" : def.source === "entered" && valueText && latest ? `${formatClock(latest.t)} MET` : "";
+  const time = key === "exercise" && valueText ? "From your shirt" : def.source === "entered" && valueText && latest ? `${formatClock(latest.t)} MET` : "";
   return (
     <li
       className={clsx("relative transition-colors duration-[120ms]", selected ? "bg-muted" : STATUS_TINT[status] || "hover:bg-muted", linked && "outline-2 -outline-offset-2 outline-foreground")}
@@ -75,7 +77,7 @@ export function IndicatorRow({ state, now, selected, linked, acknowledged }: Pro
             ) : (
               <span className={clsx("block type-caption", ONE_LINE, due ? "font-medium text-foreground" : "text-subtle-foreground")}>
                 {/* Its own element plus a real space, so it reads "In range, steady. 07:02 MET". */}
-                {!due && <span className="sr-only">In range, {ARROW_WORD[state.arrow]}.</span>}
+                {status === "ok" && <span className="sr-only">In range, {ARROW_WORD[state.arrow]}.</span>}
                 {!due && time && " "}
                 <span>{due ? (openTask ? taskStatusText(openTask, now) : "Not taken today") : time}</span>
               </span>
