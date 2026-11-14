@@ -78,8 +78,8 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
   const [win, setWin] = useState<ChartWindow>(entered ? "7d" : "1h");
   const alert = alertFor(view, indicator);
   const region = regionsForIndicator(indicator)[0];
-  const level: EscalationLevel =
-    status === "warning" ? "surgeon" : status === "caution" && alert?.actions.some((a) => a.kind === "remeasured" || a.kind === "contacted-cmo") ? "cmo" : "self";
+  const level: EscalationLevel[] =
+    status === "warning" ? ["cmo", "surgeon"] : status === "caution" && alert?.actions.some((a) => a.kind === "remeasured" || a.kind === "contacted-cmo") ? ["cmo"] : ["self"];
   const unit = indicator === "mood" ? "" : ` ${def.unit}`;
   const measureLabel = indicator === "exercise" ? (soFar ? "Confirm" : "Correct") : valueText ? "Re-measure" : "Measure";
 
