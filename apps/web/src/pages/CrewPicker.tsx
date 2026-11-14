@@ -1,14 +1,14 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Crew picker (ui.md 5.1): one click or tap, no password. Health shows as badge and word only, no values (privacy).
 // A crew roster: one line of summary, then a row per person with their status, what is next and when
-// they last checked in. "Due now" is plain text: no tint, bar, dot or blinking (ui.md 3.3: status colour
-// is for status only, and a check that is simply due is not a fault).
+// they last checked in. A row whose check is due now blinks (red bar and tint) and the routine alarm rings.
 // Works the same with a mouse, a keyboard and touch: the whole row is one target, Up and Down move
 // between people, Enter opens. Nothing depends on hover.
 import clsx from "clsx";
 import { useRef, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { formatClock, missionDay, nextTask, type RoutineEntry } from "@missionvitals/shared";
+import { useDueAlarm } from "../audio/alertTone";
 import { BadgeIcon, StatusBadge } from "../components/status/StatusBadge";
 import { useCrewHealth, useData, useMission } from "../data/DataProvider";
 import type { HealthView } from "../data/health";
@@ -36,12 +36,19 @@ function NextCheck({ e, now }: { e: RoutineEntry | undefined; now: number }) {
   return (
     <span className="flex min-w-0 flex-col">
       <span className={clsx("truncate type-small text-foreground", (k === "due" || k === "overdue") && "font-medium")}>{e.task.label}</span>
-      <span className={clsx("flex items-center gap-1.5 type-caption tabular-nums", k === "due" ? "font-medium text-foreground" : k === "overdue" ? "text-watch-text" : "text-muted-foreground")}>
+      <span className={clsx("flex items-center gap-1.5 type-caption tabular-nums", k === "due" ? "font-medium text-warning-text" : k === "overdue" ? "text-watch-text" : "text-muted-foreground")}>
+        {k === "due" && <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />}
         {k === "overdue" && <BadgeIcon status="watch" size={12} />}
         {nextWhen(e, now)}
       </span>
     </span>
   );
+}
+
+/** Every crew member's due-now checks go to the one app-wide alarm, which rings once per beat. */
+function useCrewAlarm(crew: HealthView[]) {
+  const items = crew.flatMap((v) => v.routine.entries.filter((e) => e.state.kind === "due").map((e) => ({ key: `${v.astronaut.id}:${e.task.id}:${e.dueAt}`, dueAt: e.dueAt })));
+  useDueAlarm(items, crew[0]?.now ?? 0, false);
 }
 
 /** "3 crew. 2 checks due now. 1 caution." Plain sentences, no counters in badges. */
@@ -64,6 +71,7 @@ export default function CrewPicker() {
   const mission = useMission();
   const crew = useCrewHealth();
   const list = useRef<HTMLUListElement>(null);
+  useCrewAlarm(crew);
   const now = crew[0]?.now ?? mission.met;
 
   // Desktop list behaviour: Up and Down move between people, Home and End jump. Enter and Space open (native).
@@ -105,6 +113,7 @@ export default function CrewPicker() {
               const next = nextTask(v.routine.entries);
               const open = v.alerts.filter((a) => !a.acknowledged).length;
               const last = v.lastCheckIn;
+              const dueNow = next?.state.kind === "due";
               return (
                 <li key={v.astronaut.id}>
                   <button
@@ -116,6 +125,7 @@ export default function CrewPicker() {
                     className={clsx(
                       "group grid min-h-[72px] w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-5 gap-y-2 px-4 py-3 text-left transition-colors duration-[120ms] hover:bg-muted focus-visible:-outline-offset-2",
                       COLS,
+                      dueNow && "anim-row-alert",
                     )}
                   >
                     <span className="flex min-w-0 flex-col">

@@ -1,7 +1,8 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // One strip under the header that answers "Am I OK?" (ui.md 4.2) and names the next routine check.
 // An unacknowledged Warning turns the strip into the Warning bar (ui.md 5.6): tint, red rule, View.
-// Nothing is said twice. A check that is due now shows Postpone (secondary) and Start (primary), no pulse.
+// Nothing is said twice. A check that is due now shows a red Postpone and a green Start that pulses,
+// and the routine alarm rings (rung from the app shell, so it sounds on every page).
 // "Routine" opens today's full routine as a page. On phone the strip keeps only Start; Routine and
 // Symptoms move to the More tab.
 import clsx from "clsx";

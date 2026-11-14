@@ -3,7 +3,8 @@
 // and the overlays every page shares.
 import { createContext, useContext, type ReactNode } from "react";
 import type { Astronaut } from "@missionvitals/shared";
-import { useWarningTone } from "../../audio/alertTone";
+import { useDueAlarm, useWarningTone } from "../../audio/alertTone";
+import { useUi } from "../../state/ui";
 import { useAstronaut, useHealth } from "../../data/DataProvider";
 import type { HealthView } from "../../data/health";
 import { DemoSheet } from "../demo/DemoSheet";
@@ -24,8 +25,14 @@ export function useCurrentHealth(): HealthView | null {
   return useContext(HealthContext);
 }
 
-/** One short tone when a Warning first appears for this crew member. Due checks are silent. */
-function WarningTone({ view }: { view: HealthView }) {
+/**
+ * Sounds for this crew member: the routine alarm while a check is due now (quiet while a measurement or the
+ * Postpone dialog is open), and one tone when a Warning first appears.
+ */
+function Alarms({ view }: { view: HealthView }) {
+  const { procedure, postponeTaskId } = useUi();
+  const items = view.routine.entries.filter((e) => e.state.kind === "due").map((e) => ({ key: `${view.astronaut.id}:${e.task.id}:${e.dueAt}`, dueAt: e.dueAt }));
+  useDueAlarm(items, view.now, procedure !== null || postponeTaskId !== null);
   useWarningTone(view.alerts.filter((a) => a.status === "warning" && !a.acknowledged).map((a) => a.id));
   return null;
 }
@@ -46,7 +53,7 @@ function Frame({ view, fixed, strip, children }: { view: HealthView | null; fixe
         <div className="h-16 shrink-0 md:hidden" />
       </div>
       <BottomTabs />
-      {view && <WarningTone view={view} />}
+      {view && <Alarms view={view} />}
       {view && <RoutinePage view={view} />}
       {view && <PostponeDialog view={view} />}
       {view && <SymptomsPage view={view} />}

@@ -494,14 +494,14 @@ Opened from the routine bar, a **Measure** button or a body region. Dialog 560 p
 
 ### 5.6 Alerts
 
-- **Warning**: full-width bar under the header, Warning tint, 1 px Warning bottom border, octagon badge, one sentence, **View** button. Stays until acknowledged. One short two-tone sound when the Warning first appears, rung once and never repeated, and only after the user has clicked or pressed a key on the page. A visible **Sound on / Sound off** toggle in the header mutes it, and the choice is kept on the device. No flashing, no blocking pop-up.
+- **Warning**: full-width bar under the header, Warning tint, 1 px Warning bottom border, octagon badge, one sentence, **View** button. Stays until acknowledged. One short two-tone sound when the Warning first appears, rung once and never repeated (not rung late if audio was still locked). A visible **Sound on / Sound off** toggle in the header mutes it, and the choice is kept on the device. No flashing, no blocking pop-up.
 - **Caution**: in the summary sentence, the indicator row and the body region. No bar.
 - **Watch**: under "Also watching". Never interrupts.
 - Every alert's detail shows why it fired (rule and numbers), what to do, the escalation level, and an action log with **I re-measured**, **Checked the sensor**, **Contacted the CMO** and **Add note**. **Acknowledge** is the primary button.
 
 ### 5.7 Routine and light gamification
 
-- **Due now**: the actions are a secondary **Postpone** and a primary **Start**, with no status-colour fills and no pulse, the same in the status strip and the routine table. On phone the strip keeps only **Start**; Routine and Symptoms move to the More tab. **Postpone** opens a dialog with a dropdown (5, 10, 15 or 30 minutes, 1 or 2 hours, default 30) and shows the new due time. A due check makes no sound; only a Warning does (see above). The full routine opens as a page from **Routine** in the strip, as a table with Status and Actions columns.
+- **Due now**: the actions are a solid red **Postpone** (no pulse) and a solid green **Start** that pulses slowly (stopped by reduced motion), the same in the status strip and the routine table. On phone the strip keeps only **Start**; Routine and Symptoms move to the More tab. **Postpone** opens a dialog with a dropdown (5, 10, 15 or 30 minutes, 1 or 2 hours, default 30) and shows the new due time. A short two-tone alarm rings on every page while the task stays due: every 30 s for the first 2 min, every 15 s to 5 min, every 10 s to 10 min, then every 2.5 s, counted from the due time. It stops when the task is done, postponed or turns overdue, pauses while a measurement or the Postpone dialog is open, and waits for the first click or key press if the browser has not unlocked audio. On the crew picker, a row whose check is due now blinks with a red left bar and tint (reduced motion keeps the tint). The **Sound on / Sound off** toggle in the header mutes the alarm and the Warning tone. The full routine opens as a page from **Routine** in the strip, as a table with Status and Actions columns.
 
 This is a duty roster, not a game.
 
