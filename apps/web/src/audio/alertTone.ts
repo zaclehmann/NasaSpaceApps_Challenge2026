@@ -3,13 +3,15 @@
 // Two things ring it:
 // - The routine alarm. While a check is due now it rings on every page, at the pace of the task that has
 //   waited longest (see ringInterval): every 30 s for the first 2 min, every 15 s to 5 min, every 10 s to
-//   10 min, then every 2.5 s. It stops when the task is done, postponed or turns overdue, and pauses while a
-//   measurement or the Postpone dialog is open.
-// - A Warning. One ring when it first appears; it never repeats.
+//   10 min, then every 2.5 s. It stops for good once the astronaut presses Start or Postpone for that task
+//   (state/attention.ts), and when the task is done or turns overdue. A ring already sounding is cut off.
+// - A Warning. One ring when it first appears; it never repeats. Acknowledge cuts it off if still sounding.
 // Alarms are never muted. The header Sound toggle (useAlertMute) is for click feedback, the click sound and
 // vibration (audio/clickFeedback.ts); it is kept here, on this device, so both read one setting.
 // Browsers keep audio locked until the page has had a click or key press. A routine ring asked for before
-// then waits and plays once on the first interaction; a Warning that appeared before then is not rung late.
+// then waits and plays once on the first interaction (a moment later, so a first press of Start or Postpone
+// cancels it instead of ringing over it); a Warning that appeared before then is not rung late. So nothing
+// ever sounds before the first interaction.
 // Why rings never double up:
 // - Tabs share the last ring time and the Warnings already rung in localStorage, and take a Web Lock
 //   before ringing, so only one tab rings per beat.
@@ -17,6 +19,7 @@
 //   cleared when it is replaced.
 // - A ring never starts while one is sounding.
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { acted, isMarked, onAttentionChange } from "../state/attention";
 
 /** The tone pattern lasts about 1.2 s. A new ring inside this window is dropped, never layered. */
 const TONE_MS = 1300;
@@ -40,7 +43,13 @@ interface Source {
 }
 
 interface AlarmState {
-  version: 3;
+  version: 4;
+  /** The output of the ring sounding now, so acting on it can cut it off. */
+  out: GainNode | null;
+  /** What the ring sounding now is for. */
+  outKind: "routine" | "warning" | null;
+  /** Stops listening to state/attention.ts; replaced on a hot reload. */
+  unlisten?: () => void;
   ctx: AudioContext | null;
   /** A routine ring asked for while audio was still locked. Plays once on the first click or key press. */
   pending: boolean;
@@ -68,12 +77,14 @@ function readMuted(): boolean {
 
 const G = globalThis as unknown as { __missionvitalsAlarm?: AlarmState };
 // A state object from an older version of this module lacks fields: stop its timer and start fresh.
-if (G.__missionvitalsAlarm && G.__missionvitalsAlarm.version !== 3) {
+if (G.__missionvitalsAlarm && G.__missionvitalsAlarm.version !== 4) {
   clearTimeout((G.__missionvitalsAlarm as Partial<AlarmState>).timer);
   G.__missionvitalsAlarm = undefined;
 }
 const S: AlarmState = (G.__missionvitalsAlarm ??= {
-  version: 3,
+  version: 4,
+  out: null,
+  outKind: null,
   ctx: null,
   pending: false,
   unlockBound: false,
@@ -102,7 +113,7 @@ function context(): AudioContext | null {
   return S.ctx;
 }
 
-function tone(c: AudioContext, freq: number, start: number, length: number) {
+function tone(c: AudioContext, out: AudioNode, freq: number, start: number, length: number) {
   const osc = c.createOscillator();
   const gain = c.createGain();
   osc.type = "triangle";
@@ -112,22 +123,58 @@ function tone(c: AudioContext, freq: number, start: number, length: number) {
   gain.gain.linearRampToValueAtTime(0.18, start + 0.015);
   gain.gain.setValueAtTime(0.18, start + length - 0.03);
   gain.gain.linearRampToValueAtTime(0, start + length);
-  osc.connect(gain).connect(c.destination);
+  osc.connect(gain).connect(out);
   osc.start(start);
   osc.stop(start + length);
 }
 
-/** Starts the tone now, unless this tab started one less than TONE_MS ago. Alarms ignore the mute. */
-function play(c: AudioContext) {
+/**
+ * Cuts off a ring that is sounding now (a fast fade, so it does not click). `kind` limits it to a routine
+ * ring or a Warning ring. Silencing the routine alarm also drops a ring still waiting for the first press.
+ */
+function silence(kind: "routine" | "warning") {
+  if (kind === "routine") S.pending = false;
+  if (S.outKind === kind) cut();
+}
+
+function cut() {
+  const out = S.out;
+  S.out = null;
+  S.outKind = null;
+  if (!out || !S.ctx) return;
+  const t = S.ctx.currentTime;
+  out.gain.cancelScheduledValues(t);
+  out.gain.setValueAtTime(out.gain.value, t);
+  out.gain.linearRampToValueAtTime(0, t + 0.02);
+  setTimeout(() => out.disconnect(), 100);
+}
+
+/**
+ * Starts the tone now. Alarms ignore the mute. Rings never layer: a routine ring is dropped if this tab
+ * started one less than TONE_MS ago or a Warning is sounding; a Warning takes over from a routine ring.
+ */
+function play(c: AudioContext, kind: "routine" | "warning") {
   const wall = Date.now();
-  if (wall - S.lastPlayed < TONE_MS) return;
+  if (S.outKind === "warning") return;
+  if (kind === "routine" && wall - S.lastPlayed < TONE_MS) return;
+  cut();
   S.lastPlayed = wall;
   const t = c.currentTime + 0.02;
+  const out = c.createGain();
+  out.connect(c.destination);
+  S.out = out;
+  S.outKind = kind;
   for (let r = 0; r < 2; r++) {
     const o = t + r * 0.6;
-    tone(c, 880, o, 0.16);
-    tone(c, 660, o + 0.2, 0.22);
+    tone(c, out, 880, o, 0.16);
+    tone(c, out, 660, o + 0.2, 0.22);
   }
+  setTimeout(() => {
+    if (S.out === out) {
+      S.out = null;
+      S.outKind = null;
+    }
+  }, TONE_MS);
 }
 
 /* ---------- shared across tabs ---------- */
@@ -149,8 +196,11 @@ function setSharedLastRing(wall: number) {
   }
 }
 
-/** Runs `fn` while holding the cross-tab alarm lock, or skips it if another tab holds the lock. */
-function withAlarmLock(fn: () => void, onDone?: () => void) {
+/**
+ * Runs `fn` while holding the cross-tab alarm lock. A routine ring skips it if the lock is busy (another
+ * tab or ring has this beat); a Warning (`wait`) waits its turn, then checks the shared list itself.
+ */
+function withAlarmLock(fn: () => void, onDone?: () => void, wait = false) {
   const locks = (navigator as Navigator & { locks?: LockManager }).locks;
   if (!locks) {
     fn();
@@ -158,7 +208,7 @@ function withAlarmLock(fn: () => void, onDone?: () => void) {
     return;
   }
   void locks
-    .request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
+    .request(LOCK_NAME, { ifAvailable: !wait }, async (lock) => {
       if (lock) fn();
     })
     .finally(() => onDone?.());
@@ -172,14 +222,21 @@ function bindUnlock() {
     if (!c) return;
     void c.resume().then(() => {
       if (!S.pending) return;
-      S.pending = false;
-      // Same cross-tab rule: if another tab has just rung, this late ring is dropped.
-      withAlarmLock(() => {
+      // Wait for the press to land: if it was Start or Postpone for the due task, nothing is due any more.
+      setTimeout(() => {
+        if (!S.pending || longestWait(Date.now()) === null) {
+          S.pending = false;
+          return;
+        }
+        S.pending = false;
+        // Same cross-tab rule: if another tab has just rung, this late ring is dropped.
+        withAlarmLock(() => {
         const wall = Date.now();
         if (wall - sharedLastRing() < TONE_MS) return;
         setSharedLastRing(wall);
-        play(c);
-      });
+        play(c, "routine");
+        });
+      }, 400);
     });
   };
   window.addEventListener("pointerdown", unlock, { capture: true });
@@ -204,7 +261,7 @@ function ringIfDue(gapMs: number) {
       bindUnlock();
       if (c.state === "running") {
         setSharedLastRing(wall);
-        play(c);
+        play(c, "routine");
       } else {
         // Do not claim the beat: a tab that can make sound should get it.
         S.pending = true;
@@ -232,12 +289,20 @@ function longestWait(wall: number): number | null {
   let most: number | null = null;
   for (const s of S.sources.values()) {
     for (const i of s.items) {
+      if (isMarked(acted(i.key))) continue;
       const waited = Math.max(0, s.met - i.dueAt + (wall - s.wall) / 1000);
       if (most === null || waited > most) most = waited;
     }
   }
   return most;
 }
+
+// Start or Postpone pressed: cut off the ring if it is for nothing that is still due, and look again.
+S.unlisten?.();
+S.unlisten = onAttentionChange(() => {
+  if (longestWait(Date.now()) === null) silence("routine");
+  tick();
+});
 
 function tick() {
   clearTimeout(S.timer);
@@ -314,14 +379,18 @@ function ringWarning(key: string) {
     if (rung.includes(key)) return;
     writeRung([...rung, key]);
     setSharedLastRing(Date.now());
-    play(c);
-  });
+    play(c, "warning");
+  }, undefined, true);
 }
 
 /** Rings once for each unacknowledged Warning when it first appears. `keys` are the alert ids. */
 export function useWarningTone(keys: string[]) {
   const signature = keys.join("|");
+  const before = useRef<string[]>([]);
   useEffect(() => {
+    // A Warning that has left the list was acknowledged: stop its ring if it is still sounding.
+    if (before.current.some((k) => !keys.includes(k))) silence("warning");
+    before.current = keys;
     for (const key of keys) {
       if (S.seen.has(key)) continue;
       S.seen.add(key);

@@ -494,14 +494,14 @@ Opened from the routine bar, a **Measure** button or a body region. Dialog 560 p
 
 ### 5.6 Alerts
 
-- **Warning**: full-width bar under the header, Warning tint, 1 px Warning bottom border, octagon badge, one sentence, **View** button. Stays until acknowledged. One short two-tone sound when the Warning first appears, rung once and never repeated (not rung late if audio was still locked). It is never muted: the header **Sound on / Sound off** toggle covers click feedback only. No flashing, no blocking pop-up.
+- **Warning**: full-width bar under the header, Warning tint, 1 px Warning bottom border, octagon badge, one sentence, **View** button. Stays until acknowledged. One short two-tone sound when the Warning first appears, rung once and never repeated (not rung late if audio was still locked). It takes over from a routine ring that is sounding, and **Acknowledge** cuts it off if it is still sounding. It is never muted: the header **Sound on / Sound off** toggle covers click feedback only. No flashing, no blocking pop-up.
 - **Caution**: in the summary sentence, the indicator row and the body region. No bar.
 - **Watch**: under "Also watching". Never interrupts.
 - Every alert's detail shows why it fired (rule and numbers), what to do, the escalation level, and an action log with **I re-measured**, **Checked the sensor**, **Contacted the CMO** and **Add note**. **Acknowledge** is the primary button.
 
 ### 5.7 Routine and light gamification
 
-- **Due now**: the actions are a solid red **Postpone** (no pulse) and a solid green **Start** that pulses slowly (stopped by reduced motion), the same in the status strip and the routine table. On phone the strip keeps only **Start**; Routine and Symptoms move to the More tab. **Postpone** opens a dialog with a dropdown (5, 10, 15 or 30 minutes, 1 or 2 hours, default 30) and shows the new due time. A short two-tone alarm rings on every page while the task stays due: every 30 s for the first 2 min, every 15 s to 5 min, every 10 s to 10 min, then every 2.5 s, counted from the due time. It stops when the task is done, postponed or turns overdue, pauses while a measurement or the Postpone dialog is open, and waits for the first click or key press if the browser has not unlocked audio. On the crew picker, a row whose check is due now blinks with a red left bar and tint (reduced motion keeps the tint). The alarm is never muted. The header **Sound on / Sound off** toggle is for click feedback only (the click sound and vibration). The full routine opens as a page from **Routine** in the strip, as a table with Status and Actions columns.
+- **Due now**: the actions are a solid red **Postpone** (no pulse) and a solid green **Start** that pulses slowly 5 times, then stays green and still (WCAG 2.2.2), the same in the status strip and the routine table. Pressing Start or Postpone stops the pulse at once; a newly due check pulses again. No pulse with reduced motion. On phone the strip keeps only **Start**; Routine and Symptoms move to the More tab. **Postpone** opens a dialog with a dropdown (5, 10, 15 or 30 minutes, 1 or 2 hours, default 30) and shows the new due time. A short two-tone alarm rings on every page while the task stays due: every 30 s for the first 2 min, every 15 s to 5 min, every 10 s to 10 min, then every 2.5 s, counted from the due time. Acting on it silences it, as in crew alert design: it stops for good once **Start** or **Postpone** is pressed for that task (even if the measurement or the dialog is then cancelled), and when the task is done or turns overdue. Nothing sounds before the first click or key press; a ring asked for before then plays a moment after the first press, unless that press was Start or Postpone. On the crew picker, a row whose check is due now keeps a red left bar and tint while due, and blinks 5 times or until it is opened (reduced motion: no blink). The alarm is never muted. The header **Sound on / Sound off** toggle is for click feedback only (the click sound and vibration). The full routine opens as a page from **Routine** in the strip, as a table with Status and Actions columns.
 
 This is a duty roster, not a game.
 
@@ -652,9 +652,10 @@ Motion answers an action or marks a change. One orchestrated moment, nothing dec
 - New reading: the value cross-fades in 150 ms. No counting up, no flash.
 - Status change on a region: tint fades in over 300 ms, once.
 - Routine segment fills over 200 ms when a task completes.
+- Due-now exception: the green **Start** pulses and a due crew picker row blinks, 5 cycles each, then stop (5.7). Acting on the item stops it sooner. Under 3 flashes a second.
 - Data-driven exception: the heart-rate icon may pulse once per measured beat (scale 1 to 1.1). It shows the real rate, so it's information. It stops when data is missing.
 
-**Banned:** fade-and-slide-up on every section, hover lifts on panels, breathing or glowing elements, parallax, bounce, confetti, pulsing alerts.
+**Banned:** fade-and-slide-up on every section, hover lifts on panels, breathing or glowing elements, parallax, bounce, confetti, pulsing alerts (beyond the 5-cycle due-now cue above).
 
 Everything above turns off under `prefers-reduced-motion: reduce`.
 

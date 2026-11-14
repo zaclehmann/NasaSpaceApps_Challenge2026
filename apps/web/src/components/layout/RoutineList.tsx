@@ -8,8 +8,9 @@ import clsx from "clsx";
 import { ArrowLeft, Check, ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
 import { POSTPONE_MIN, formatClock, type RoutineEntry } from "@missionvitals/shared";
-import { useData } from "../../data/DataProvider";
+import { useAstronaut, useData } from "../../data/DataProvider";
 import type { HealthView } from "../../data/health";
+import { acted, dueKey, mark, usePulse } from "../../state/attention";
 import { useUi } from "../../state/ui";
 import { BadgeIcon } from "../status/StatusBadge";
 import { Button } from "../ui/Button";
@@ -41,15 +42,34 @@ const GREEN = "border-transparent! bg-ok! text-[var(--glyph-on-status)]! hover:o
 /** Postpone and Start. `startOnlyOnPhone`: the phone status strip has room for Start alone. */
 export function TaskActions({ e, startOnlyOnPhone = false }: { e: RoutineEntry; startOnlyOnPhone?: boolean }) {
   const { startProcedure, setPostponeTaskId } = useUi();
+  const astronaut = useAstronaut();
   const due = e.state.kind === "due";
+  const key = astronaut ? dueKey(astronaut.id, e.task.id, e.dueAt) : null;
+  // Pulses 5 times, or until Start or Postpone is pressed; the routine alarm for it stops then too.
+  const { pulse, onAnimationEnd } = usePulse("start", due ? key : null, key ? [acted(key)] : []);
+  const act = () => key && mark(acted(key));
   return (
     <span className="inline-flex items-center gap-2">
       {due && (
-        <Button size="sm" variant="primary" className={clsx(RED, startOnlyOnPhone && "max-md:hidden")} onClick={() => setPostponeTaskId(e.task.id)}>
+        <Button size="sm" variant="primary" className={clsx(RED, startOnlyOnPhone && "max-md:hidden")} onClick={() => {
+            act();
+            setPostponeTaskId(e.task.id);
+          }}
+        >
           Postpone
         </Button>
       )}
-      <Button size="sm" variant="primary" className={clsx(due && ["anim-attention-ok", GREEN])} onClick={() => startProcedure({ kind: e.task.kind, taskId: e.task.id })}>
+      <Button
+        key={key ?? undefined}
+        size="sm"
+        variant="primary"
+        className={clsx(due && [GREEN, pulse && "anim-attention-ok"])}
+        onAnimationEnd={onAnimationEnd}
+        onClick={() => {
+          if (due) act();
+          startProcedure({ kind: e.task.kind, taskId: e.task.id });
+        }}
+      >
         Start
       </Button>
     </span>

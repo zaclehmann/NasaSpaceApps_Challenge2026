@@ -5,13 +5,14 @@
 // Works the same with a mouse, a keyboard and touch: the whole row is one target, Up and Down move
 // between people, Enter opens. Nothing depends on hover.
 import clsx from "clsx";
-import { useRef, type KeyboardEvent } from "react";
+import { useRef, type ButtonHTMLAttributes, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { formatClock, missionDay, nextTask, type RoutineEntry } from "@missionvitals/shared";
 import { useDueAlarm } from "../audio/alertTone";
 import { BadgeIcon, StatusBadge } from "../components/status/StatusBadge";
 import { useCrewHealth, useData, useMission } from "../data/DataProvider";
 import type { HealthView } from "../data/health";
+import { acted, dueKey, mark, opened, usePulse } from "../state/attention";
 
 /** "12 min", "1 h 24 min", "3 h". */
 function span(sec: number): string {
@@ -47,7 +48,7 @@ function NextCheck({ e, now }: { e: RoutineEntry | undefined; now: number }) {
 
 /** Every crew member's due-now checks go to the one app-wide alarm, which rings once per beat. */
 function useCrewAlarm(crew: HealthView[]) {
-  const items = crew.flatMap((v) => v.routine.entries.filter((e) => e.state.kind === "due").map((e) => ({ key: `${v.astronaut.id}:${e.task.id}:${e.dueAt}`, dueAt: e.dueAt })));
+  const items = crew.flatMap((v) => v.routine.entries.filter((e) => e.state.kind === "due").map((e) => ({ key: dueKey(v.astronaut.id, e.task.id, e.dueAt), dueAt: e.dueAt })));
   useDueAlarm(items, crew[0]?.now ?? 0, false);
 }
 
@@ -65,6 +66,16 @@ function summary(crew: HealthView[]): string {
 }
 
 const COLS = "md:grid-cols-[minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(200px,1.4fr)_minmax(110px,0.8fr)]";
+
+/** One crew row. While its check is due it keeps the tint and red bar, and blinks 5 times or until opened. */
+function PickerRow({ rowKey, className, children, ...rest }: { rowKey: string | null } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { pulse, onAnimationEnd } = usePulse("row", rowKey, rowKey ? [opened(rowKey), acted(rowKey)] : []);
+  return (
+    <button key={rowKey ?? "calm"} type="button" data-row className={clsx(className, pulse && "anim-row-alert")} onAnimationEnd={onAnimationEnd} {...rest}>
+      {children}
+    </button>
+  );
+}
 
 export default function CrewPicker() {
   const { setAstronautId } = useData();
@@ -114,18 +125,21 @@ export default function CrewPicker() {
               const open = v.alerts.filter((a) => !a.acknowledged).length;
               const last = v.lastCheckIn;
               const dueNow = next?.state.kind === "due";
+              const key = next && dueNow ? dueKey(v.astronaut.id, next.task.id, next.dueAt) : null;
               return (
                 <li key={v.astronaut.id}>
-                  <button
-                    type="button"
-                    data-row
-                    onClick={() => setAstronautId(v.astronaut.id)}
+                  <PickerRow
+                    rowKey={key}
+                    onClick={() => {
+                      if (key) mark(opened(key));
+                      setAstronautId(v.astronaut.id);
+                    }}
                     onKeyDown={onKey}
                     aria-label={`${v.astronaut.name}, ${v.astronaut.role}. ${next ? `${next.task.label}, ${nextWhen(next, now).toLowerCase()}.` : "All checks done today."}`}
                     className={clsx(
                       "group grid min-h-[72px] w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-5 gap-y-2 px-4 py-3 text-left transition-colors duration-[120ms] hover:bg-muted focus-visible:-outline-offset-2",
                       COLS,
-                      dueNow && "anim-row-alert",
+                      dueNow && "row-due",
                     )}
                   >
                     <span className="flex min-w-0 flex-col">
@@ -142,7 +156,7 @@ export default function CrewPicker() {
                     </span>
                     <NextCheck e={next} now={now} />
                     <span className="type-small text-muted-foreground tabular-nums max-md:text-right">{last ? (now - last < 60 ? "Just now" : `${span(now - last)} ago`) : "None today"}</span>
-                  </button>
+                  </PickerRow>
                 </li>
               );
             })}

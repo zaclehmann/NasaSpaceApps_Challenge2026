@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { SCENARIOS } from "@missionvitals/shared";
 import { useAstronaut, useCrew, useData, useMission } from "../../data/DataProvider";
+import { resetAttention } from "../../state/attention";
 import { useUi } from "../../state/ui";
 import { useThemeChoice, type ThemeChoice } from "../../theme/useTheme";
 import { Scale } from "../ui/Scale";
@@ -46,6 +47,8 @@ export function DemoSheet() {
                 checked={mission.scenario === s.id && mission.scenarioTarget === target}
                 onChange={() => {
                   resetSelection();
+                  // A new scenario starts fresh: its due checks pulse and ring again.
+                  resetAttention();
                   source.setScenario(s.id, target);
                 }}
                 title={`${s.number}. ${s.name}`}

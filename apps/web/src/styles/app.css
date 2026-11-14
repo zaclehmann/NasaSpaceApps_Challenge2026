@@ -67,21 +67,25 @@
 @keyframes mv-page-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 .anim-page { animation: mv-page-in 180ms ease-out; }
 
-/* A routine check that is due now: Start pulses slowly (well under 3 flashes a second). Reduced motion stops it. */
+/* A routine check that is due now: Start pulses slowly (well under 3 flashes a second), 5 times, then stays
+   green and still (WCAG 2.2.2). Acting on it stops it sooner (state/attention.ts). Reduced motion: no pulse. */
 @keyframes mv-attention-ok {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 55%, transparent); }
   50% { opacity: 0.7; box-shadow: 0 0 0 6px color-mix(in oklab, var(--ok) 0%, transparent); }
 }
-.anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out infinite; }
-/* A crew picker row whose routine check is due now: the whole row blinks. Reduced motion keeps the tint. */
+.anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out 5; }
+/* A crew picker row whose routine check is due now: tint and red bar while due (.row-due); the row blinks
+   5 times, or until it is opened (.anim-row-alert). Reduced motion keeps the tint and bar, no blink. */
 @keyframes mv-row-alert {
   0%, 100% { background-color: color-mix(in oklab, var(--warning) 26%, transparent); }
   50% { background-color: var(--warning-tint); }
 }
-.anim-row-alert { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); animation: mv-row-alert 1s ease-in-out infinite; }
+.row-due { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); }
+.anim-row-alert { animation: mv-row-alert 1s ease-in-out 5; }
 
 
 @media (prefers-reduced-motion: reduce) {
+  .anim-attention-ok, .anim-row-alert { animation: none !important; }
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
