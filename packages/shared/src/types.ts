@@ -34,7 +34,7 @@ export type IndicatorKey = "hr" | "spo2" | "temp" | "bp" | "glucose" | "sleep" |
 /** Where a reading comes from, which also sets the list group (ui.md 5.2). */
 export type IndicatorSource = "live" | "entered" | "habitat";
 
-export type ChartWindow = "1h" | "24h" | "7d" | "30d";
+export type ChartWindow = "1h" | "24h" | "7d" | "14d" | "30d";
 
 export type DeviceId = "shirt" | "cuff" | "glucometer" | "dosimeter" | "self";
 

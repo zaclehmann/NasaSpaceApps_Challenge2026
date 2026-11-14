@@ -71,3 +71,12 @@
     transition-delay: 0ms !important;
   }
 }
+
+@theme inline {
+  --color-scrim: var(--scrim);
+}
+
+/* Collapsible sections (details/summary) without the default marker. */
+summary { list-style: none; cursor: pointer; }
+summary::-webkit-details-marker { display: none; }
+details[open] > summary .chev { transform: rotate(180deg); }
