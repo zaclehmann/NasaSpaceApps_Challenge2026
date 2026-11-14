@@ -24,7 +24,7 @@ export function EarthLinkStatus({ className }: { className?: string }) {
   return (
     <span className={clsx("flex items-center gap-1.5 whitespace-nowrap text-caution-text", className)}>
       <BadgeIcon status="caution" />
-      Earth link down, {queued} {queued === 1 ? "report" : "reports"} queued
+      {queued === 0 ? "Earth link down" : `Earth link down, ${queued} ${queued === 1 ? "report" : "reports"} queued`}
     </span>
   );
 }
