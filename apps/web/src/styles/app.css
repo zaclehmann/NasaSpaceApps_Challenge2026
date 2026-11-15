@@ -67,10 +67,11 @@
 .anim-page { animation: mv-page-in 180ms ease-out; }
 
 /* A routine check that is due now: Start pulses slowly (well under 3 flashes a second), 5 times, then stays
-   green and still (WCAG 2.2.2). Acting on it stops it sooner (state/attention.ts). Reduced motion: no pulse. */
+   green and still (WCAG 2.2.2). Acting on it stops it sooner (state/attention.ts). Reduced motion: no pulse.
+   Only a ring outside the button moves: the button keeps its normal fill, so its text contrast never changes. */
 @keyframes mv-attention-ok {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 55%, transparent); }
-  50% { opacity: 0.7; box-shadow: 0 0 0 6px color-mix(in oklab, var(--ok) 0%, transparent); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 60%, transparent); }
+  60% { box-shadow: 0 0 0 7px color-mix(in oklab, var(--ok) 0%, transparent); }
 }
 .anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out 5; }
 /* Crew picker rows (ui.md 5.7). A routine check due now: a neutral tint and bar (.row-due), blinking 5 times or
