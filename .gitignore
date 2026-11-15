@@ -14,3 +14,6 @@ supabase/.temp
 apps/server/supabase/.temp
 # Working notes and prompts, never committed
 Claude outputs/
+# Slide deck: only the finished presentation goes in the repo
+submission_slides/*
+!submission_slides/MissionVitals_Demonstration.pptx
