@@ -7,14 +7,15 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "apps/web"
+    "apps/web",
+    "apps/server"
   ],
   "scripts": {
     "dev": "npm run dev -w @missionvitals/web",
     "build": "npm run build -w @missionvitals/web",
     "preview": "npm run preview -w @missionvitals/web",
-    "typecheck": "npm run typecheck -w @missionvitals/shared && npm run typecheck -w @missionvitals/web",
-    "test": "npm run test -w @missionvitals/shared",
+    "typecheck": "npm run typecheck -w @missionvitals/shared && npm run typecheck -w @missionvitals/server && npm run typecheck -w @missionvitals/web",
+    "test": "npm run test -w @missionvitals/shared && npm run test -w @missionvitals/server",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "fetch:donki": "node scripts/fetch-donki.mjs"
   },

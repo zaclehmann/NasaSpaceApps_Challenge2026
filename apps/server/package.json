@@ -1,0 +1,19 @@
+{
+  "name": "@missionvitals/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MissionVitals API handlers, run as Vercel serverless functions. AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@missionvitals/shared": "0.1.0",
+    "@supabase/supabase-js": "^2.119.0",
+    "zod": "^3.25.76"
+  }
+}

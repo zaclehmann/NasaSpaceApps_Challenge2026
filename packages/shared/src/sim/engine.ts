@@ -195,9 +195,10 @@ export class SessionEngine {
     return this.symptoms.filter((x) => x.astronautId === astronautId).sort((a, b) => b.t - a.t);
   }
 
-  addSymptom(astronautId: string, symptom: NewSymptom): Symptom {
+  /** `id` is given when rebuilding from stored rows, so ids stay the same on the server and in the browser. */
+  addSymptom(astronautId: string, symptom: NewSymptom, id?: string): Symptom {
     const now = this.now();
-    const s: Symptom = { ...symptom, id: `sym-${++this.symptomSeq}`, astronautId, t: now, startedAt: Math.min(symptom.startedAt, now) };
+    const s: Symptom = { ...symptom, id: id ?? `sym-${++this.symptomSeq}`, astronautId, t: now, startedAt: Math.min(symptom.startedAt, now) };
     this.symptoms = [...this.symptoms, s];
     this.changed();
     return s;
@@ -239,6 +240,12 @@ export class SessionEngine {
 
   getDownlinkQueue(): Report[] {
     return this.reports;
+  }
+
+  /** Replaces the downlink queue with stored reports (the server's copy), then moves them on by the clock. */
+  loadReports(reports: Report[]): void {
+    this.reports = [...reports];
+    this.advanceReports();
   }
 
   setScenario(scenario: ScenarioId, astronautId: string): void {
@@ -292,6 +299,11 @@ export class SessionEngine {
       return r;
     });
     if (dirty) this.reports = next;
+  }
+
+  /** The indicator's evaluation now, with the shared status rules (what the screen shows as its status). */
+  evaluateIndicator(astronautId: string, key: IndicatorKey): Evaluation {
+    return this.evaluateFor(astronautId, key, this.now());
   }
 
   private evaluateFor(astronautId: string, key: IndicatorKey, now: number): Evaluation {
