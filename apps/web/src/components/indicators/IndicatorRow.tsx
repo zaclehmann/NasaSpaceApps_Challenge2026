@@ -46,7 +46,6 @@ export function IndicatorRow({ state, now, selected, linked, acknowledged }: Pro
   const flagged = status !== "ok" && status !== "due";
   // Exercise has no button here: the shirt counts it, and the day's Confirm task lives in the routine list.
   const needsMeasure = def.source === "entered" && valueText === null && key !== "exercise";
-  const beat = key === "hr" && valueText && latest ? { animation: `mv-beat ${(60 / Math.max(30, latest.value)).toFixed(2)}s ease-out infinite` } : undefined;
   // Exercise is counted by the shirt through the day: the source line says so, and the value reads "124 min today so far".
   const time = key === "exercise" && valueText ? "From your shirt" : def.source === "entered" && valueText && latest ? `${formatClock(latest.t)} MET` : "";
   return (
@@ -65,7 +64,7 @@ export function IndicatorRow({ state, now, selected, linked, acknowledged }: Pro
       >
         {/* Top line. When a button sits on the right, the text keeps clear of it. */}
         <span className={clsx("flex min-h-9 w-full items-center gap-2.5", needsMeasure && "pr-[104px]")}>
-          <Icon size={16} strokeWidth={1.5} aria-hidden="true" className={clsx("shrink-0", selected ? "text-foreground" : "text-muted-foreground")} style={beat} />
+          <Icon size={16} strokeWidth={1.5} aria-hidden="true" className={clsx("shrink-0", selected ? "text-foreground" : "text-muted-foreground")} />
           <span className="min-w-0 flex-1">
             <span className={clsx("block type-small", ONE_LINE, selected ? "font-semibold" : "font-medium")}>{key === "radiation" ? "Radiation" : def.name}</span>
             {flagged ? (

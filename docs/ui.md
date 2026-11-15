@@ -654,7 +654,7 @@ Motion answers an action or marks a change. One orchestrated moment, nothing dec
 - Status change on a region: tint fades in over 300 ms, once.
 - Routine segment fills over 200 ms when a task completes.
 - Due-now exception: the green **Start** pulses and a due crew picker row blinks, 5 cycles each, then stop (5.7). Acting on the item stops it sooner. Under 3 flashes a second.
-- Data-driven exception: the heart-rate icon may pulse once per measured beat (scale 1 to 1.1). It shows the real rate, so it's information. It stops when data is missing.
+- The heart-rate icon stays still. The rate is printed beside it, so a beating icon would add motion without information, and it could not be paused (WCAG 2.2.2).
 
 **Banned:** fade-and-slide-up on every section, hover lifts on panels, breathing or glowing elements, parallax, bounce, confetti, pulsing alerts (beyond the 5-cycle due-now cue above).
 
