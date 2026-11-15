@@ -1,2 +1,2 @@
 <!-- AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann. -->
-Vercel function entry point that routes `/api/*` to the handlers in `apps/server/src`. Filled in Phase S.
+The Vercel function: router.js loads _server.mjs, the API bundled by npm run build:api.

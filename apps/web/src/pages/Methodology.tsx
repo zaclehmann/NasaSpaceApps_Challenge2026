@@ -191,8 +191,8 @@ function Content() {
         <li>Guidance covers re-measuring, habits, mission procedure and escalation only. It does not diagnose.</li>
         <li>Eyes and inner ear are not measured; they are covered only by the symptom log. Temperature is only a fever check, not a measure of the immune system. Exercise minutes stand in for bone and muscle health, which is not measured directly.</li>
         <li>
-          On a spacecraft this would run on an onboard server. The prototype runs in the browser with a simulated data source behind one interface, so a server could replace it without changing
-          the screens. Data lives in memory and resets on reload.
+          Entries are stored per demo session in Postgres (Supabase), which stands in for a database on an onboard server; the live readings are simulated. If the server can't be reached, the app runs
+          in local mode, with the same simulator in the browser and nothing stored.
         </li>
         <li>Not tested with astronauts or clinicians.</li>
       </ul>
