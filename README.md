@@ -25,6 +25,17 @@ Other commands:
 | `npm run build` | Production build of the web app |
 | `npm run typecheck` | Type-check both packages |
 | `npm test` | Unit tests for the status function |
+| `npm run check:supabase` | Check that the Supabase project in `.env.local` can be reached |
+
+## Configuration
+
+The web app runs without any configuration. The server work (in progress) needs a Supabase project:
+
+1. Copy `.env.example` to `.env.local`. It is git-ignored.
+2. The URL is already filled in. Add `SUPABASE_SERVICE_ROLE_KEY` from Supabase › Project Settings › API in project `NASA_Space_Apps` (the service_role key, shown on newer projects as a secret key starting `sb_secret_`).
+3. Run `npm run check:supabase`. It should print "Supabase reachable".
+
+The service role key is server-only. It must never go into `apps/web`, a `VITE_` variable, a commit, a screenshot or a chat.
 
 ## Demo
 

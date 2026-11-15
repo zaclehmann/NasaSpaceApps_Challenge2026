@@ -14,7 +14,8 @@
     "build": "npm run build -w @missionvitals/web",
     "preview": "npm run preview -w @missionvitals/web",
     "typecheck": "npm run typecheck -w @missionvitals/shared && npm run typecheck -w @missionvitals/web",
-    "test": "npm run test -w @missionvitals/shared"
+    "test": "npm run test -w @missionvitals/shared",
+    "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs"
   },
   "engines": {
     "node": ">=20"

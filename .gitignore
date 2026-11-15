@@ -3,3 +3,13 @@ dist
 *.log
 .DS_Store
 .vite
+
+# Local secrets. Never commit these.
+.env
+.env.local
+.env.*.local
+.vercel
+# Supabase CLI local cache
+supabase/.temp
+# Working notes and prompts, never committed
+Claude outputs/
