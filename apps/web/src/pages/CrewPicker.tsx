@@ -69,13 +69,13 @@ const COLS = "md:grid-cols-[minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(200px
 
 /** One crew row. While its check is due it keeps the tint and red bar, and blinks 5 times or until opened. */
 /**
- * One crew row. A due check gives it a neutral tint and bar, and it blinks 5 times or until opened. Red (tint and
- * bar) is only for an astronaut at Warning, as everywhere else: red is reserved for Warning (ui.md 3).
+ * One crew row. A due check gives it a red bar and a red outline that flashes 5 times or until opened; the
+ * background stays put so the text keeps its contrast. An astronaut at Warning also gets a static red tint.
  */
-function PickerRow({ rowKey, warning, className, children, ...rest }: { rowKey: string | null; warning: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
+function PickerRow({ rowKey, className, children, ...rest }: { rowKey: string | null } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const { pulse, onAnimationEnd } = usePulse("row", rowKey, rowKey ? [opened(rowKey), acted(rowKey)] : []);
   return (
-    <button key={rowKey ?? "calm"} type="button" data-row className={clsx(className, pulse && (warning ? "anim-row-alert-warning" : "anim-row-alert"))} onAnimationEnd={onAnimationEnd} {...rest}>
+    <button key={rowKey ?? "calm"} type="button" data-row className={clsx(className, pulse && "anim-row-alert")} onAnimationEnd={onAnimationEnd} {...rest}>
       {children}
     </button>
   );
@@ -157,7 +157,6 @@ export default function CrewPicker() {
               return (
                 <li key={v.astronaut.id}>
                   <PickerRow
-                    warning={v.overall === "warning"}
                     rowKey={key}
                     onClick={() => {
                       if (key) mark(opened(key));

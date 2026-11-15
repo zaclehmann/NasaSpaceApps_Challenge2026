@@ -74,26 +74,21 @@
   60% { box-shadow: 0 0 0 7px color-mix(in oklab, var(--ok) 0%, transparent); }
 }
 .anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out 5; }
-/* Crew picker rows (ui.md 5.7). A routine check due now: a neutral tint and bar (.row-due), blinking 5 times or
-   until the row is opened (.anim-row-alert). An astronaut at Warning: the red tint and bar (.row-warning), the
-   only red on the picker, with a red blink when a check is also due. Reduced motion keeps tint and bar, no blink. */
-/* Never darker than --muted, so status words on the row keep their contrast (WCAG AA) mid-blink. */
+/* Crew picker rows (ui.md 5.7). A routine check due now: a red left bar (.row-due) and a red outline that
+   flashes 5 times or until the row is opened (.anim-row-alert). Only the outline moves; the row's background never
+   changes, so its status words keep their contrast (WCAG AA). An astronaut at Warning: a static red tint and bar
+   (.row-warning), with the same red flash when a check is also due. Reduced motion keeps the bar and tint, no flash. */
 @keyframes mv-row-alert {
-  0%, 100% { background-color: var(--muted); }
-  50% { background-color: var(--background); }
+  0%, 100% { box-shadow: inset 3px 0 0 var(--warning), inset 0 0 0 2px color-mix(in oklab, var(--warning) 0%, transparent); }
+  50% { box-shadow: inset 3px 0 0 var(--warning), inset 0 0 0 2px var(--warning); }
 }
-@keyframes mv-row-alert-warning {
-  0%, 100% { background-color: color-mix(in oklab, var(--warning) 18%, var(--background)); }
-  50% { background-color: var(--warning-tint); }
-}
-.row-due { background-color: var(--muted); box-shadow: inset 3px 0 0 var(--foreground); }
+.row-due { box-shadow: inset 3px 0 0 var(--warning); }
 .row-warning { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); }
 .anim-row-alert { animation: mv-row-alert 1s ease-in-out 5; }
-.anim-row-alert-warning { animation: mv-row-alert-warning 1s ease-in-out 5; }
 
 
 @media (prefers-reduced-motion: reduce) {
-  .anim-attention-ok, .anim-row-alert, .anim-row-alert-warning { animation: none !important; }
+  .anim-attention-ok, .anim-row-alert { animation: none !important; }
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

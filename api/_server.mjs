@@ -24280,6 +24280,16 @@ function seedEntered(s) {
 			"sleep-review": today + sleepMin * 60
 		};
 	}
+	CREW.filter((a) => a.id !== s.target).forEach((a, i) => {
+		const at = today + 50400 + (31 + i) * 60;
+		manual[a.id].mood.push({
+			t: at,
+			value: BASE[a.id].mood,
+			stress: 2,
+			device: "self"
+		});
+		completions[a.id].mood = at;
+	});
 	const t = manual[s.target];
 	if (s.scenario === "hr-exercise") {
 		const at = s.anchor - 1320;

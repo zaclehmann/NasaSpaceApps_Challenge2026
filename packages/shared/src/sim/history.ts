@@ -50,6 +50,14 @@ export function seedEntered(s: SimScenario): { manual: EnteredReadings; completi
     completions[a.id] = { "bp-am": today + bpMin * MIN, "temp-am": today + tempMin * MIN, "glucose-am": today + gluMin * MIN, "sleep-review": today + sleepMin * MIN };
   }
 
+  // Only the scenario's astronaut has a check due now on the crew picker: the others did today's mood check-in
+  // a few minutes ago, just after it fell due at 14:30.
+  CREW.filter((a) => a.id !== s.target).forEach((a, i) => {
+    const at = today + 14 * 3600 + (31 + i) * MIN;
+    manual[a.id].mood.push({ t: at, value: BASE[a.id].mood, stress: 2, device: "self" });
+    completions[a.id].mood = at;
+  });
+
   // Scenarios that change entered data.
   const t = manual[s.target];
   if (s.scenario === "hr-exercise") {
