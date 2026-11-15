@@ -11,5 +11,6 @@ dist
 .vercel
 # Supabase CLI local cache
 supabase/.temp
+apps/server/supabase/.temp
 # Working notes and prompts, never committed
 Claude outputs/
