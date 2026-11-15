@@ -168,7 +168,7 @@ export async function postReading(ctx: Ctx, body: unknown) {
     takenAt: ctx.now(),
   });
   const state = await stateOf(ctx, b.session, b.astronaut);
-  const ind = (state.view.astronauts as Record<string, { indicators: Record<string, { status: string }>; alerts: { indicator: string; status: string; acknowledged: boolean }[] }>)[b.astronaut];
+  const ind = (state.view.astronauts as Record<string, { indicators: Record<string, { status: string }>; alerts: { id: string; indicator: string; status: string; acknowledged: boolean }[] }>)[b.astronaut];
   return { reading: row, status: ind.indicators[b.indicator]?.status ?? null, alert: ind.alerts.find((a) => a.indicator === b.indicator) ?? null, state };
 }
 

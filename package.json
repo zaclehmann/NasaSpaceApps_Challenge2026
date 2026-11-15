@@ -15,12 +15,13 @@
     "build": "npm run build:api && npm run build -w @missionvitals/web && node scripts/check-web-bundle.mjs",
     "preview": "npm run preview -w @missionvitals/web",
     "typecheck": "npm run typecheck -w @missionvitals/shared && npm run typecheck -w @missionvitals/server && npm run typecheck -w @missionvitals/web",
-    "test": "npm run test -w @missionvitals/shared && npm run test -w @missionvitals/server",
+    "test": "npm run test -w @missionvitals/shared && npm run test -w @missionvitals/server && npm run test -w @missionvitals/web",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "fetch:donki": "node scripts/fetch-donki.mjs",
     "build:api": "vite build --config apps/server/bundle.config.ts",
     "dev:api": "npm run build:api && node --env-file=.env.local scripts/dev-api.mjs",
-    "dev:full": "vercel dev"
+    "dev:full": "vercel dev",
+    "smoke:api": "node scripts/smoke-api.mjs"
   },
   "engines": {
     "node": ">=20"
