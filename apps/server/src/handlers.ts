@@ -8,7 +8,6 @@ import {
   DemoRequest,
   INDICATORS,
   ReadingRequest,
-  ReadingsQuery,
   ReportRequest,
   ResolveSymptomRequest,
   RoutineRequest,
@@ -200,13 +199,6 @@ export async function getState(ctx: Ctx, query: unknown): Promise<StateResponseT
   if (!loaded) loaded = { session: await ctx.store.ensureSession(q.session, ctx.now()), rows: { readings: [], symptoms: [], routine: [], alerts: [], actions: [], reports: [] } };
   const [state] = await Promise.all([stateOf(ctx, loaded, q.astronaut), touch(ctx, loaded.session)]);
   return state;
-}
-
-export async function getReadings(ctx: Ctx, query: unknown) {
-  const q = parse(ReadingsQuery, query);
-  const { session, rows } = await load(ctx, q.session);
-  const { engine } = rebuildSession(session, rows, ctx.now());
-  return { readings: engine.getReadings(q.astronaut, q.indicator, q.window) };
 }
 
 export async function postReading(ctx: Ctx, body: unknown) {

@@ -19,7 +19,6 @@ const ROUTES: Route[] = [
   { method: "GET", pattern: /^health$/, run: (ctx) => h.health(ctx) },
   { method: "POST", pattern: /^session$/, run: (ctx, _m, _q, body) => h.createSession(ctx, body) },
   { method: "GET", pattern: /^state$/, run: (ctx, _m, q) => h.getState(ctx, q) },
-  { method: "GET", pattern: /^readings$/, run: (ctx, _m, q) => h.getReadings(ctx, q) },
   { method: "POST", pattern: /^readings$/, run: (ctx, _m, _q, body) => h.postReading(ctx, body) },
   { method: "POST", pattern: /^symptoms$/, run: (ctx, _m, _q, body) => h.postSymptom(ctx, body) },
   { method: "POST", pattern: /^symptoms\/([\w-]{1,40})\/resolve$/, run: (ctx, m, _q, body) => h.resolveSymptom(ctx, m[1], body) },

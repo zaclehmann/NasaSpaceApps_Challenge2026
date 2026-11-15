@@ -26,7 +26,6 @@ const Viewer = { viewer: z.enum(["hana", "mira", "tomas"]).nullable().optional()
 
 export const SessionRequest = z.object({ id: SessionId }).strict();
 export const StateQuery = z.object({ session: SessionId, astronaut: AstronautId.optional() });
-export const ReadingsQuery = z.object({ session: SessionId, astronaut: AstronautId, indicator: IndicatorKeyZ, window: ChartWindowZ });
 
 export const ReadingRequest = z
   .object({

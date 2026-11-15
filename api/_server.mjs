@@ -28432,7 +28432,7 @@ var EnteredIndicator = enumType([
 	"exercise",
 	"mood"
 ]);
-var ChartWindowZ = enumType([
+enumType([
 	"1h",
 	"24h",
 	"7d",
@@ -28492,12 +28492,6 @@ var SessionRequest = objectType({ id: SessionId }).strict();
 var StateQuery = objectType({
 	session: SessionId,
 	astronaut: AstronautId.optional()
-});
-var ReadingsQuery = objectType({
-	session: SessionId,
-	astronaut: AstronautId,
-	indicator: IndicatorKeyZ,
-	window: ChartWindowZ
 });
 var ReadingRequest = objectType({
 	...Viewer,
@@ -29030,12 +29024,6 @@ async function getState(ctx, query) {
 	const [state] = await Promise.all([stateOf(ctx, loaded, q.astronaut), touch(ctx, loaded.session)]);
 	return state;
 }
-async function getReadings(ctx, query) {
-	const q = parse(ReadingsQuery, query);
-	const { session, rows } = await load(ctx, q.session);
-	const { engine } = rebuildSession(session, rows, ctx.now());
-	return { readings: engine.getReadings(q.astronaut, q.indicator, q.window) };
-}
 async function postReading(ctx, body) {
 	const b = parse(ReadingRequest, body);
 	const loaded = await load(ctx, b.session);
@@ -29222,11 +29210,6 @@ var ROUTES = [
 		method: "GET",
 		pattern: /^state$/,
 		run: (ctx, _m, q) => getState(ctx, q)
-	},
-	{
-		method: "GET",
-		pattern: /^readings$/,
-		run: (ctx, _m, q) => getReadings(ctx, q)
 	},
 	{
 		method: "POST",
