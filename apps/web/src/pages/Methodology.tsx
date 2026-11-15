@@ -52,7 +52,7 @@ function Content() {
       <Todo>one paragraph on why these nine indicators were chosen for the challenge brief.</Todo>
       <P>
         The solar storm scenario uses real NASA data. It replays records from NASA's{" "}
-        <A href="https://kauai.ccmc.gsfc.nasa.gov/DONKI/">DONKI space weather database</A> (Community Coordinated Modeling Center) for the May 2024 solar storm: {stormSentence()} The flares, CMEs and particle
+        <A href="https://ccmc.gsfc.nasa.gov/DONKI/">DONKI space weather database</A> (Community Coordinated Modeling Center) for the May 2024 solar storm: {stormSentence()} The flares, CMEs and particle
         arrivals and the real gaps between them come from DONKI; the sequence is moved onto the mission clock so the &gt;100 MeV arrival lands 30 minutes before the demo's "now". The habitat dose rate is simulated,
         because DONKI records events, not dose. The data was downloaded once ({DONKI_SOURCE.fetchedAt.slice(0, 10)}) and ships with the app, so nothing is fetched at runtime.
       </P>

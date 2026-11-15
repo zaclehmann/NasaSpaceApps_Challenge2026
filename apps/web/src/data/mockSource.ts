@@ -10,6 +10,7 @@ import {
   ROUTINE,
   WINDOW_SEC,
   evaluate,
+  lookbackHistory,
   formatClock,
   formatValue,
   routineContext,
@@ -540,7 +541,9 @@ export class MockSource implements DataSource {
 
   private evaluateFor(astronautId: string, key: IndicatorKey, now: number): Evaluation {
     const routine = routineContext(routineEntries(ROUTINE, this.completions[astronautId] ?? {}, now, this.postponements[astronautId]), key);
-    return evaluate(key, this.getReadings(astronautId, key, INDICATORS[key].source === "entered" ? "30d" : "1h"), { now, routine });
+    const entered = INDICATORS[key].source === "entered";
+    const history = entered ? undefined : () => lookbackHistory((w) => this.getReadings(astronautId, key, w));
+    return evaluate(key, this.getReadings(astronautId, key, entered ? "30d" : "1h"), { now, routine, history });
   }
 
   private updateAlerts() {
