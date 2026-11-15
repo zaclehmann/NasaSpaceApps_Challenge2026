@@ -616,7 +616,7 @@ From the dataviz skill. Each chart shows one indicator.
 | Tabs, segmented control | Text items. Selected: 600 weight and 2 px `--foreground` underline. |
 | Input | 1 px `--border`, radius 6, `--card` fill, label above; focus 2 px `--ring`. |
 | Numeric input | 28 px value text, unit fixed inside on the right, `inputmode="decimal"`. |
-| 1 to 5 scale | Five joined buttons with word labels. Selected: `--foreground` fill, `--background` text. |
+| 1 to 5 scale | Five joined buttons with word labels. Selected: `--foreground` fill, `--background` text. A radio group: one Tab stop, arrow keys move and choose (wrapping), Home and End jump to the ends. |
 | Toggle tag | 32 px tall, radius 16, 1 px `--border`. On: `--foreground` fill. |
 | Status badge | 16 px custom shape, always with its word. |
 | Divided list | 1 px `--border` between rows, 12 px vertical padding, no outer box. |
