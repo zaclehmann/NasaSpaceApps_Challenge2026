@@ -58,7 +58,9 @@ export function attentionFor(views: HealthView[], symptoms: (id: string) => Symp
       items.push({
         key: `${v.astronaut.id}-${sym.id}`,
         astronaut: v.astronaut,
-        status: open ? st : "watch",
+        // The real level, for everyone: it counts toward the astronaut's status, so the list must agree with it.
+        // What the symptom is stays private: "Symptom logged", no body part or detail.
+        status: st,
         item: open ? `${part}: ${sym.kind.toLowerCase()}` : "Symptom logged",
         value: open ? `${sym.severity} of 10` : "Private",
         since: sym.startedAt,
