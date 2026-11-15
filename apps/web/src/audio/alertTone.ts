@@ -6,8 +6,8 @@
 //   10 min, then every 2.5 s. It stops for good once the astronaut presses Start or Postpone for that task
 //   (state/attention.ts), and when the task is done or turns overdue. A ring already sounding is cut off.
 // - A Warning. One ring when it first appears; it never repeats. Acknowledge cuts it off if still sounding.
-// Alarms are never muted. The header Sound toggle (useAlertMute) is for click feedback, the click sound and
-// vibration (audio/clickFeedback.ts); it is kept here, on this device, so both read one setting.
+// Alarms have no mute. The only sound setting is "Click feedback" in the sidebar (audio/clickFeedback.ts),
+// which covers the click sound and vibration, never an alarm.
 // Browsers keep audio locked until the page has had a click or key press. A routine ring asked for before
 // then waits and plays once on the first interaction (a moment later, so a first press of Start or Postpone
 // cancels it instead of ringing over it); a Warning that appeared before then is not rung late. So nothing
@@ -18,14 +18,13 @@
 // - All state lives in one object on globalThis, so a hot reload reuses it, and the old version's timer is
 //   cleared when it is replaced.
 // - A ring never starts while one is sounding.
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import { acted, isMarked, onAttentionChange } from "../state/attention";
 
 /** The tone pattern lasts about 1.2 s. A new ring inside this window is dropped, never layered. */
 const TONE_MS = 1300;
 const LAST_RING_KEY = "missionvitals.alarm.lastRing";
 const RUNG_KEY = "missionvitals.alarm.rung";
-const MUTE_KEY = "missionvitals.alarm.muted";
 const LOCK_NAME = "missionvitals-alarm";
 
 export interface DueItem {
@@ -63,16 +62,6 @@ interface AlarmState {
   ringing: boolean;
   /** Warnings this tab has already looked at. Each is considered once. */
   seen: Set<string>;
-  muted: boolean;
-  muteListeners: Set<(m: boolean) => void>;
-}
-
-function readMuted(): boolean {
-  try {
-    return window.localStorage.getItem(MUTE_KEY) === "1";
-  } catch {
-    return false;
-  }
 }
 
 const G = globalThis as unknown as { __missionvitalsAlarm?: AlarmState };
@@ -93,8 +82,6 @@ const S: AlarmState = (G.__missionvitalsAlarm ??= {
   timer: undefined,
   ringing: false,
   seen: new Set(),
-  muted: readMuted(),
-  muteListeners: new Set(),
 });
 
 // When this module is replaced by a hot reload, stop its timer. The new version picks up the same state.
@@ -398,30 +385,4 @@ export function useWarningTone(keys: string[]) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
-}
-
-/* ---------- mute ---------- */
-
-/**
- * The mute for click feedback (click sound and vibration), and a setter. It never mutes an alarm.
- * Shared by every screen; kept on this device under MUTE_KEY, which clickFeedback.ts reads.
- */
-export function useAlertMute(): [boolean, (m: boolean) => void] {
-  const [muted, setMutedState] = useState(S.muted);
-  useEffect(() => {
-    S.muteListeners.add(setMutedState);
-    return () => {
-      S.muteListeners.delete(setMutedState);
-    };
-  }, []);
-  const set = useCallback((m: boolean) => {
-    S.muted = m;
-    try {
-      window.localStorage.setItem(MUTE_KEY, m ? "1" : "0");
-    } catch {
-      // The choice lasts for this visit only.
-    }
-    S.muteListeners.forEach((l) => l(m));
-  }, []);
-  return [muted, set];
 }

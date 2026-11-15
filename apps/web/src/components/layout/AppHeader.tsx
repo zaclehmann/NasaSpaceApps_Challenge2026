@@ -10,7 +10,6 @@ import { useUi } from "../../state/ui";
 import { BadgeIcon } from "../status/StatusBadge";
 import { Button } from "../ui/Button";
 import { NAV, Sidebar, useSwitchAstronaut } from "./Sidebar";
-import { SoundToggle } from "./SoundToggle";
 
 const Rule = ({ className }: { className?: string }) => <span aria-hidden="true" className={clsx("h-5 w-px shrink-0 bg-border", className)} />;
 
@@ -62,13 +61,9 @@ export function AppHeader() {
         <span className="whitespace-nowrap text-muted-foreground max-2xl:hidden">MET {formatMet(mission.met)}</span>
         <Rule className="max-md:hidden" />
         <EarthLinkStatus />
-        <span className="md:hidden">
-          <SoundToggle compact />
-        </span>
       </div>
 
       <div className="flex items-center justify-end gap-3 max-md:hidden">
-        <SoundToggle />
         {astronaut && <span className="font-medium whitespace-nowrap">{astronaut.name}</span>}
         <Button variant="text" size="sm" className="text-muted-foreground" onClick={switchAstronaut}>
           Switch

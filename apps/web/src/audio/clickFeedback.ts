@@ -4,15 +4,13 @@
 // buttons get it without any wiring. It fires on press (pointer down, or Enter and Space on the keyboard),
 // not on release, the way a physical key does. Disabled controls stay silent.
 //
-// Off switches: the header's sound toggle and "Click feedback" in the sidebar each turn off both the tick
-// and the vibration. Neither ever silences the due alarm or the Warning tone; alarms always sound.
+// Off switch: "Click feedback" in the sidebar turns off both the tick and the vibration. It never silences
+// the due alarm or the Warning tone; alarms always sound.
 // Vibration needs the Vibration API (Android browsers); iPhone browsers do not offer it to web pages,
 // so they get the tick only.
 import { useEffect, useState } from "react";
 
 const PREF_KEY = "missionvitals.clickFeedback";
-/** The header's sound toggle. "1" turns off click feedback (tick and vibration); alarms are not affected. */
-const SOUND_MUTE_KEY = "missionvitals.alarm.muted";
 
 /** What counts as a control. Plain text, labels and the page background never tick. */
 const CONTROL = [
@@ -50,14 +48,6 @@ function readPref(): boolean {
 const G = globalThis as unknown as { __missionvitalsClick?: FeedbackState };
 const S: FeedbackState = (G.__missionvitalsClick ??= { ctx: null, installed: false, enabled: readPref(), last: 0, listeners: new Set() });
 
-function clicksMuted(): boolean {
-  try {
-    return window.localStorage.getItem(SOUND_MUTE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 function context(): AudioContext | null {
   if (S.ctx) return S.ctx;
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -94,7 +84,7 @@ function isControl(target: EventTarget | null): boolean {
 }
 
 function feedback(withVibration: boolean) {
-  if (!S.enabled || clicksMuted()) return;
+  if (!S.enabled) return;
   // A press and the key or click that follows it count once.
   const now = performance.now();
   if (now - S.last < 60) return;
