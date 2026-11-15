@@ -15,7 +15,8 @@
     "preview": "npm run preview -w @missionvitals/web",
     "typecheck": "npm run typecheck -w @missionvitals/shared && npm run typecheck -w @missionvitals/web",
     "test": "npm run test -w @missionvitals/shared",
-    "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs"
+    "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
+    "fetch:donki": "node scripts/fetch-donki.mjs"
   },
   "engines": {
     "node": ">=20"
