@@ -4,7 +4,7 @@
 // From 1280 to 1536 px the page links share the bar, so vehicle and MET step out (they are in the sidebar).
 import clsx from "clsx";
 import { Link, NavLink } from "react-router-dom";
-import { formatDelay, formatMet, missionDay } from "@missionvitals/shared";
+import { formatClock, formatDelay, missionDay } from "@missionvitals/shared";
 import { useConnection } from "../../data/connection";
 import { useAstronaut, useData, useMission } from "../../data/DataProvider";
 import { useUi } from "../../state/ui";
@@ -76,8 +76,11 @@ export function AppHeader() {
 
       <div className="flex min-w-0 items-center justify-end gap-4 md:justify-center">
         <span className="whitespace-nowrap max-2xl:hidden">{mission.name}</span>
-        <span className="whitespace-nowrap text-muted-foreground max-md:hidden">Mission day {missionDay(mission.met)}</span>
-        <span className="whitespace-nowrap text-muted-foreground max-2xl:hidden">MET {formatMet(mission.met)}</span>
+        {/* "Mission day 142, 14:33 MET"; the time joins it from 1536 px, where the bar has room. */}
+        <span className="whitespace-nowrap text-muted-foreground max-md:hidden">
+          Mission day {missionDay(mission.met)}
+          <span className="max-2xl:hidden">, {formatClock(mission.met)} MET</span>
+        </span>
         <Rule className="max-md:hidden" />
         <EarthLinkStatus />
         <OnboardStatus />

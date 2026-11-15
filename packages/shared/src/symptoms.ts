@@ -16,6 +16,12 @@ export interface SymptomCore {
   affectsWork: boolean;
   /** MET seconds when marked resolved. */
   resolvedAt?: number;
+  /**
+   * A crewmate's symptom shown to someone who isn't the crew medical officer: no body part, symptom, severity or
+   * note, only the status level the server worked out. It still counts toward that astronaut's status.
+   */
+  hidden?: boolean;
+  level?: "watch" | "caution" | "warning" | null;
 }
 
 /** One logged symptom. `kind` is one of SYMPTOM_WORDS[layer]. */
@@ -45,6 +51,7 @@ export const SYMPTOM_LASTING_SEC = 2 * DAY;
  */
 export function symptomStatus(s: SymptomCore, now: number): Extract<Status, "watch" | "caution" | "warning"> | null {
   if (s.resolvedAt !== undefined && s.resolvedAt <= now) return null;
+  if (s.hidden) return s.level ?? null;
   if (s.severity >= 7 || s.affectsWork) return "warning";
   if (s.severity >= 4 || now - s.startedAt > SYMPTOM_LASTING_SEC) return "caution";
   return "watch";

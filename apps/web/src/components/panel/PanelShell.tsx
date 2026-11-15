@@ -78,7 +78,8 @@ export function PanelShell({ title, icon, back, status, kicker, primary, summary
         role={tabs ? "tabpanel" : undefined}
         aria-label={tabs ? current?.label : undefined}
         tabIndex={tabs ? 0 : undefined}
-        className={clsx("relative min-h-0 flex-1 overflow-y-auto focus-visible:outline-offset-[-2px]", tabs && tabs.length > 1 ? "pt-4 pb-4" : "pt-3 pb-4")}
+        // pb-8: scrolled to the end, the last row sits clear of the Send report / Log action bar at every width.
+        className={clsx("relative min-h-0 flex-1 overflow-y-auto focus-visible:outline-offset-[-2px]", tabs && tabs.length > 1 ? "pt-4 pb-8" : "pt-3 pb-8")}
       >
         {tabs ? current?.content : children}
       </div>

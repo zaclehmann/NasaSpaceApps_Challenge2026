@@ -60,7 +60,8 @@ function Content() {
       <H2>Simulation</H2>
       <P>
         All data comes from a seeded generator, so every load shows the same data. Live signals are a baseline for each astronaut, plus a daily rhythm, a slow drift that pulls back toward the baseline, and small noise. Live
-        signals update every 5 seconds and the dosimeter every minute. Each astronaut has 30 days of history.
+        signals update every 5 seconds and the dosimeter every minute. Each astronaut has 30 days of history. Times are mission elapsed time (MET), shown as "Mission day 142, 14:33 MET": day 142 is the day that begins
+        after 141 full days have elapsed, so it is MET 141 days, 14 hours and 33 minutes.
       </P>
       <P>Seven scenarios change the simulated data itself:</P>
       <ol className="mt-2 list-decimal space-y-1 pl-5 type-small">
@@ -79,7 +80,7 @@ function Content() {
       <P>
         In server mode the app talks to a Node API (Vercel serverless functions) that stores everything the astronaut does, such as entered readings, symptoms, routine actions, alert acknowledgements and actions, and
         reports, in a Postgres database (Supabase). Supabase stands in for Postgres on an onboard server; on a spacecraft the same database would run on board, not in the cloud. Live readings are simulated from a
-        seeded model shared by the server and the browser, so they don't need to be stored. Each browser gets its own demo session, so one person's actions never change another's screen. The server decides
+        seeded model shared by the server and the browser, so they don't need to be stored. Each browser gets its own demo session, so one person's actions never change another's screen. The server also enforces privacy: an astronaut's symptoms and the private parts of a mood check-in (stress, tags and notes) go only to that astronaut and the crew medical officer. The server decides
         statuses and alerts with the same rules the app shows. If the server doesn't answer within 3 seconds at load, or fails three times in a row, the app switches to local mode: the same simulator in the
         browser, with "Onboard server: offline, local mode" in the header. Losing the onboard server and losing the Earth link are separate states, shown separately.
       </P>
@@ -190,8 +191,8 @@ function Content() {
         <li>Guidance covers re-measuring, habits, mission procedure and escalation only. It does not diagnose.</li>
         <li>Eyes and inner ear are not measured; they are covered only by the symptom log. Temperature is only a fever check, not a measure of the immune system. Exercise minutes stand in for bone and muscle health, which is not measured directly.</li>
         <li>
-          On a spacecraft this would run on an onboard server. The prototype runs in the browser with a simulated data source behind one interface, so a server could replace it without changing
-          the screens. Data lives in memory and resets on reload.
+          Entries are stored per demo session in Postgres (Supabase), which stands in for a database on an onboard server; the live readings are simulated. If the server can't be reached, the app runs
+          in local mode, with the same simulator in the browser and nothing stored.
         </li>
         <li>Not tested with astronauts or clinicians.</li>
       </ul>

@@ -3,6 +3,7 @@
 // body and query is checked with these schemas; stored rows travel in the /state response in the same shape.
 // Times on the wire are ISO wall-clock strings; both sides turn them into mission time with the session clock.
 import { z } from "zod";
+import { readingRangeError } from "../entryRanges";
 
 export const SessionId = z.string().uuid({ message: "session must be a UUID" });
 export const AstronautId = z.enum(["hana", "mira", "tomas"]);
@@ -18,15 +19,17 @@ export const UrgencyZ = z.enum(["routine", "24h", "urgent"]);
 const Iso = z.string().datetime({ offset: true });
 const Note = z.string().max(500, { message: "note must be 500 characters or fewer" });
 const ShortId = z.string().min(1).max(40);
+/** Who is looking at the screen. The answer leaves out other astronauts' private rows unless this is the CMO. */
+const Viewer = { viewer: z.enum(["hana", "mira", "tomas"]).nullable().optional() };
 
 /* ---------- requests ---------- */
 
 export const SessionRequest = z.object({ id: SessionId }).strict();
 export const StateQuery = z.object({ session: SessionId, astronaut: AstronautId.optional() });
-export const ReadingsQuery = z.object({ session: SessionId, astronaut: AstronautId, indicator: IndicatorKeyZ, window: ChartWindowZ });
 
 export const ReadingRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     astronaut: AstronautId,
     indicator: EnteredIndicator,
@@ -39,11 +42,19 @@ export const ReadingRequest = z
     note: Note.optional(),
     device: DeviceIdZ,
     taskId: ShortId.optional(),
+    /** When it was taken (wall clock, from the session clock). The server keeps it within the last 10 minutes. */
+    takenAt: Iso.optional(),
   })
-  .strict();
+  .strict()
+  // The same entry ranges and words as the forms (entryRanges.ts): "value: Systolic must be between 60 and 250 mmHg".
+  .superRefine((r, ctx) => {
+    const e = readingRangeError(r.indicator, r);
+    if (e) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [e.field], message: e.message });
+  });
 
 export const SymptomRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     astronaut: AstronautId,
     partId: ShortId,
@@ -54,18 +65,21 @@ export const SymptomRequest = z
     startedAt: z.number().finite(),
     affectsWork: z.boolean(),
     note: Note.optional(),
+    /** When it was logged (wall clock). The server keeps it within the last 10 minutes. */
+    loggedAt: Iso.optional(),
   })
   .strict();
-export const ResolveSymptomRequest = z.object({ session: SessionId }).strict();
+export const ResolveSymptomRequest = z.object({ ...Viewer, session: SessionId }).strict();
 
-export const RoutineRequest = z.object({ session: SessionId, astronaut: AstronautId, taskId: ShortId }).strict();
+export const RoutineRequest = z.object({ ...Viewer, session: SessionId, astronaut: AstronautId, taskId: ShortId }).strict();
 export const PostponeRequest = RoutineRequest.extend({ minutes: z.number().int().min(1).max(24 * 60) }).strict();
 
-export const AcknowledgeRequest = z.object({ session: SessionId }).strict();
-export const AlertActionRequest = z.object({ session: SessionId, kind: AlertActionKindZ, note: Note.optional() }).strict();
+export const AcknowledgeRequest = z.object({ ...Viewer, session: SessionId }).strict();
+export const AlertActionRequest = z.object({ ...Viewer, session: SessionId, kind: AlertActionKindZ, note: Note.optional() }).strict();
 
 export const ReportRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     astronaut: AstronautId,
     urgency: UrgencyZ,
@@ -78,6 +92,7 @@ export const ReportRequest = z
 
 export const DemoRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     scenario: ScenarioIdZ.optional(),
     target: AstronautId.optional(),
@@ -101,6 +116,8 @@ export const SessionInfo = z.object({
   earthLinkUp: z.boolean(),
   sleepPeriod: z.boolean(),
   missionSetting: MissionSettingIdZ,
+  /** When the session last made a request; written at most once a minute. */
+  lastSeenAt: Iso.optional(),
 });
 
 export const ReadingRow = z.object({
@@ -118,18 +135,24 @@ export const ReadingRow = z.object({
   taskId: z.string().nullable(),
   takenAt: Iso,
 });
+/**
+ * A symptom row. For a crewmate's symptom sent to someone who isn't the crew medical officer it is `hidden`:
+ * body part, symptom, severity, note, start and "affects work" are null, and `level` carries its status.
+ */
 export const SymptomRow = z.object({
   id: z.number(),
   astronautId: AstronautId,
-  bodyPart: z.string(),
-  layer: BodyLayerZ,
-  symptom: z.string(),
-  severity: z.number(),
-  affectsWork: z.boolean(),
+  bodyPart: z.string().nullable(),
+  layer: BodyLayerZ.nullable(),
+  symptom: z.string().nullable(),
+  severity: z.number().nullable(),
+  affectsWork: z.boolean().nullable(),
   note: z.string().nullable(),
-  startedAt: Iso,
+  startedAt: Iso.nullable(),
   loggedAt: Iso,
   resolvedAt: Iso.nullable(),
+  hidden: z.boolean().optional(),
+  level: z.enum(["watch", "caution", "warning"]).nullable().optional(),
 });
 export const RoutineRow = z.object({
   id: z.number(),

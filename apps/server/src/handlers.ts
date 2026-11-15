@@ -8,7 +8,6 @@ import {
   DemoRequest,
   INDICATORS,
   ReadingRequest,
-  ReadingsQuery,
   ReportRequest,
   ResolveSymptomRequest,
   RoutineRequest,
@@ -19,6 +18,8 @@ import {
   SymptomRequest,
   rebuildSession,
   sessionClock,
+  symptomStatus,
+  type SessionClock,
   type AlertRowT,
   type HealthResponseT,
   type SessionInfoT,
@@ -38,20 +39,55 @@ export interface Ctx {
 /** Rows per session per table. */
 export const ROW_CAP = 500;
 
+/** How far back and ahead a client-sent action time may be: it's clamped into this window around now. */
+export const ACTION_TIME_PAST_MS = 10 * 60 * 1000;
+export const ACTION_TIME_FUTURE_MS = 5 * 1000;
+
+/**
+ * The time an action happened, as the browser sent it, kept within [now - 10 min, now + 5 s]. Using the
+ * browser's time (not the moment the request arrived) gives browser and server the same alert ids and fire times.
+ */
+export function actionTime(sent: string | undefined, now: string): string {
+  const n = Date.parse(now);
+  if (!sent) return now;
+  const t = Math.min(n + ACTION_TIME_FUTURE_MS, Math.max(n - ACTION_TIME_PAST_MS, Date.parse(sent)));
+  return new Date(t).toISOString();
+}
+
 function parse<S extends ZodTypeAny>(schema: S, input: unknown): z.infer<S> {
   const r = schema.safeParse(input);
   if (!r.success) throw badRequest(zodMessage(r.error));
   return r.data;
 }
 
-async function load(ctx: Ctx, sessionId: string): Promise<{ session: SessionInfoT; rows: SessionRowsT }> {
-  const session = await ctx.store.getSession(sessionId);
-  if (!session) throw notFound("Unknown session. Create it with POST /api/session first.");
-  return { session, rows: await ctx.store.loadRows(sessionId) };
+type Loaded = { session: SessionInfoT; rows: SessionRowsT };
+
+/** The session and all its rows, in one round of parallel queries. */
+async function load(ctx: Ctx, sessionId: string): Promise<Loaded> {
+  const loaded = await ctx.store.getSessionWithRows(sessionId);
+  if (!loaded) throw notFound("Unknown session. Open the app (GET /api/state) or POST /api/session first.");
+  return loaded;
 }
 
-async function capped(ctx: Ctx, table: Table, sessionId: string) {
-  if ((await ctx.store.count(table, sessionId)) >= ROW_CAP) throw new ApiError(429, `This demo session has reached its limit of ${ROW_CAP} ${table.replace("_", " ")}. Reset the demo to start again.`);
+const ROWS_OF: Record<Table, keyof SessionRowsT> = {
+  entered_readings: "readings",
+  symptoms: "symptoms",
+  routine_events: "routine",
+  alert_events: "alerts",
+  alert_actions: "actions",
+  reports: "reports",
+};
+
+/** The 500-row cap, counted from the rows already loaded (no count query). */
+function capped(loaded: Loaded, table: Table) {
+  if (loaded.rows[ROWS_OF[table]].length >= ROW_CAP) throw new ApiError(429, `This demo session has reached its limit of ${ROW_CAP} ${table.replace("_", " ")}. Reset the demo to start again.`);
+}
+
+/** last_seen_at, written at most once a minute so polls don't write every 5 seconds. */
+async function touch(ctx: Ctx, session: SessionInfoT) {
+  const now = ctx.now();
+  if (session.lastSeenAt && Date.parse(now) - Date.parse(session.lastSeenAt) < 60_000) return;
+  await ctx.store.updateSession(session.id, { lastSeenAt: now }).catch(() => undefined);
 }
 
 /**
@@ -65,7 +101,7 @@ async function persistAlerts(ctx: Ctx, session: SessionInfoT, rows: SessionRowsT
   for (const a of open) {
     const row = out.find((r) => r.astronautId === a.astronautId && r.indicator === a.indicator && !r.resolvedAt);
     if (!row) {
-      if ((await ctx.store.count("alert_events", session.id)) >= ROW_CAP) continue;
+      if (out.length >= ROW_CAP) continue;
       const created = await ctx.store.insertAlert(session.id, { astronautId: a.astronautId as AlertRowT["astronautId"], indicator: a.indicator, severity: a.status, openedAt: wall(Math.round(a.firedAt)), acknowledgedAt: null, resolvedAt: null });
       if (!out.some((r) => r.id === created.id)) out.push(created);
     } else if (row.severity !== a.status) {
@@ -85,21 +121,73 @@ async function persistAlerts(ctx: Ctx, session: SessionInfoT, rows: SessionRowsT
   return out;
 }
 
-/** Rebuild the session, save alert changes, and return what the screen needs. */
-async function stateOf(ctx: Ctx, sessionId: string, viewer?: string): Promise<StateResponseT> {
-  const { session, rows } = await load(ctx, sessionId);
+/** May this viewer see this astronaut's private data (symptoms, mood)? The app's rule: themselves, or the CMO. */
+function canSee(viewer: string | null | undefined, astronautId: string): boolean {
+  if (!viewer) return false;
+  return viewer === astronautId || (SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false);
+}
+
+/**
+ * The rows this viewer may receive, unless the viewer is the crew medical officer:
+ * - other astronauts' symptoms are hidden: id, astronaut, status level, logged and resolved times only (no body
+ *   part, symptom, severity or note), so the screen shows "Symptom logged" with its status and it still counts
+ *   toward that astronaut's status;
+ * - their mood check-ins lose the private fields (stress, tags, note); the value stays for their status, and the
+ *   screen shows their mood as Private;
+ * - their reports lose the symptoms line.
+ */
+function rowsFor(rows: SessionRowsT, viewer: string | null | undefined, clock: SessionClock, nowMet: number): SessionRowsT {
+  return {
+    ...rows,
+    readings: rows.readings.map((r) => (r.indicator !== "mood" || canSee(viewer, r.astronautId) ? r : { ...r, stress: null, tags: null, note: null })),
+    symptoms: rows.symptoms.map((s) =>
+      canSee(viewer, s.astronautId)
+        ? s
+        : {
+            id: s.id,
+            astronautId: s.astronautId,
+            bodyPart: null,
+            layer: null,
+            symptom: null,
+            severity: null,
+            affectsWork: null,
+            note: null,
+            startedAt: null,
+            loggedAt: s.loggedAt,
+            resolvedAt: s.resolvedAt,
+            hidden: true,
+            level: symptomStatus(
+              {
+                severity: s.severity ?? 0,
+                startedAt: clock.met(s.startedAt ?? s.loggedAt),
+                affectsWork: s.affectsWork ?? false,
+                ...(s.resolvedAt && { resolvedAt: clock.met(s.resolvedAt) }),
+              },
+              nowMet,
+            ),
+          },
+    ),
+    reports: rows.reports.map((r) => (canSee(viewer, r.astronautId) ? r : { ...r, summary: { items: r.summary.items, actions: r.summary.actions } })),
+  };
+}
+
+/**
+ * Rebuild the session, save alert changes (only when one opens, changes level or closes), and return what the
+ * screen needs. Takes the session as already loaded, so a write doesn't load everything again.
+ */
+async function stateOf(ctx: Ctx, loaded: Loaded, viewer?: string | null): Promise<StateResponseT> {
+  const { session, rows } = loaded;
   const serverTime = ctx.now();
   const rebuilt = rebuildSession(session, rows, serverTime);
   const alerts = await persistAlerts(ctx, session, rows, rebuilt.engine, rebuilt.clock.wall);
   const e = rebuilt.engine;
-  const viewerIsCmo = SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false;
   const view = {
     crew: e.getCrew(),
     mission: e.getMission(),
     astronauts: Object.fromEntries(
       SESSION_CREW.map((a) => {
         // Privacy, as in the app: symptoms and mood only for the astronaut themselves and the crew medical officer.
-        const open = !viewer || viewer === a.id || viewerIsCmo;
+        const open = canSee(viewer, a.id);
         const indicators = Object.fromEntries(
           Object.keys(INDICATORS)
             .filter((k) => open || k !== "mood")
@@ -114,7 +202,7 @@ async function stateOf(ctx: Ctx, sessionId: string, viewer?: string): Promise<St
     downlink: e.getDownlinkQueue(),
     solarEvents: e.getSolarEvents(),
   };
-  return { serverTime, nowMet: rebuilt.nowMet, session, rows: { ...rows, alerts }, view };
+  return { serverTime, nowMet: rebuilt.nowMet, session, rows: rowsFor({ ...rows, alerts }, viewer, rebuilt.clock, rebuilt.nowMet), view };
 }
 
 /* ---------- endpoints ---------- */
@@ -136,23 +224,19 @@ export async function createSession(ctx: Ctx, body: unknown): Promise<SessionInf
   return s;
 }
 
+/** The screen state. Creates the session if it doesn't exist yet, so opening the app is one request. */
 export async function getState(ctx: Ctx, query: unknown): Promise<StateResponseT> {
   const q = parse(StateQuery, query);
-  await ctx.store.updateSession(q.session, { lastSeenAt: ctx.now() }).catch(() => undefined);
-  return stateOf(ctx, q.session, q.astronaut);
-}
-
-export async function getReadings(ctx: Ctx, query: unknown) {
-  const q = parse(ReadingsQuery, query);
-  const { session, rows } = await load(ctx, q.session);
-  const { engine } = rebuildSession(session, rows, ctx.now());
-  return { readings: engine.getReadings(q.astronaut, q.indicator, q.window) };
+  let loaded = await ctx.store.getSessionWithRows(q.session);
+  if (!loaded) loaded = { session: await ctx.store.ensureSession(q.session, ctx.now()), rows: { readings: [], symptoms: [], routine: [], alerts: [], actions: [], reports: [] } };
+  const [state] = await Promise.all([stateOf(ctx, loaded, q.astronaut), touch(ctx, loaded.session)]);
+  return state;
 }
 
 export async function postReading(ctx: Ctx, body: unknown) {
   const b = parse(ReadingRequest, body);
-  if (b.indicator === "bp" && b.value2 === undefined) throw badRequest("value2: blood pressure needs the diastolic value");
-  await capped(ctx, "entered_readings", b.session);
+  const loaded = await load(ctx, b.session);
+  capped(loaded, "entered_readings");
   const row = await ctx.store.insertReading(b.session, {
     astronautId: b.astronaut,
     indicator: b.indicator,
@@ -165,17 +249,19 @@ export async function postReading(ctx: Ctx, body: unknown) {
     note: b.note ?? null,
     device: b.device,
     taskId: b.taskId ?? null,
-    takenAt: ctx.now(),
+    takenAt: actionTime(b.takenAt, ctx.now()),
   });
-  const state = await stateOf(ctx, b.session, b.astronaut);
+  loaded.rows.readings.push(row);
+  const state = await stateOf(ctx, loaded, b.viewer);
   const ind = (state.view.astronauts as Record<string, { indicators: Record<string, { status: string }>; alerts: { id: string; indicator: string; status: string; acknowledged: boolean }[] }>)[b.astronaut];
   return { reading: row, status: ind.indicators[b.indicator]?.status ?? null, alert: ind.alerts.find((a) => a.indicator === b.indicator) ?? null, state };
 }
 
 export async function postSymptom(ctx: Ctx, body: unknown) {
   const b = parse(SymptomRequest, body);
-  await capped(ctx, "symptoms", b.session);
-  const { session } = await load(ctx, b.session);
+  const loaded = await load(ctx, b.session);
+  capped(loaded, "symptoms");
+  const { session } = loaded;
   // The app gives the start in mission time; store it as wall time on the session clock, never in the future.
   const startedWall = new Date(Math.min(Date.parse(ctx.now()), Date.parse(sessionClock(session.createdAt).wall(b.startedAt)))).toISOString();
   const row = await ctx.store.insertSymptom(b.session, {
@@ -187,10 +273,11 @@ export async function postSymptom(ctx: Ctx, body: unknown) {
     affectsWork: b.affectsWork,
     note: b.note ?? null,
     startedAt: startedWall,
-    loggedAt: ctx.now(),
+    loggedAt: actionTime(b.loggedAt, ctx.now()),
     resolvedAt: null,
   });
-  return { symptom: row, state: await stateOf(ctx, b.session, b.astronaut) };
+  loaded.rows.symptoms.push(row);
+  return { symptom: row, state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 /** `id` is the symptom's id as the app shows it ("sym-db-12") or the bare row number. */
@@ -198,18 +285,21 @@ export async function resolveSymptom(ctx: Ctx, id: string, body: unknown) {
   const b = parse(ResolveSymptomRequest, body);
   const rowId = Number(id.replace(/^sym-db-/, ""));
   if (!Number.isInteger(rowId) || rowId <= 0) throw badRequest("id: not a symptom id");
-  await load(ctx, b.session);
-  if (!(await ctx.store.resolveSymptom(b.session, rowId, ctx.now()))) throw notFound("No open symptom with that id in this session.");
-  return { state: await stateOf(ctx, b.session) };
+  const loaded = await load(ctx, b.session);
+  const now = ctx.now();
+  if (!(await ctx.store.resolveSymptom(b.session, rowId, now))) throw notFound("No open symptom with that id in this session.");
+  const sym = loaded.rows.symptoms.find((x) => x.id === rowId);
+  if (sym) sym.resolvedAt = now;
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 async function routineEvent(ctx: Ctx, body: unknown, kind: "completed" | "postponed") {
   const b = kind === "completed" ? parse(RoutineRequest, body) : parse(PostponeRequest, body);
-  await capped(ctx, "routine_events", b.session);
-  await load(ctx, b.session);
+  const loaded = await load(ctx, b.session);
+  capped(loaded, "routine_events");
   const now = ctx.now();
   const minutes = "minutes" in b ? Number(b.minutes) : 0;
-  await ctx.store.insertRoutine(b.session, {
+  const row = await ctx.store.insertRoutine(b.session, {
     astronautId: b.astronaut,
     taskId: b.taskId,
     day: now.slice(0, 10),
@@ -217,16 +307,22 @@ async function routineEvent(ctx: Ctx, body: unknown, kind: "completed" | "postpo
     at: now,
     postponedUntil: kind === "postponed" ? new Date(Date.parse(now) + minutes * 60_000).toISOString() : null,
   });
-  return { state: await stateOf(ctx, b.session, b.astronaut) };
+  loaded.rows.routine.push(row);
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 export const completeTask = (ctx: Ctx, body: unknown) => routineEvent(ctx, body, "completed");
 export const postponeTask = (ctx: Ctx, body: unknown) => routineEvent(ctx, body, "postponed");
 
 /** The open alert with the app's id, and its stored row (saved first if it's new). */
-async function alertRow(ctx: Ctx, sessionId: string, alertId: string): Promise<AlertRowT> {
-  const state = await stateOf(ctx, sessionId);
+async function alertRow(ctx: Ctx, loaded: Loaded, alertId: string): Promise<AlertRowT> {
+  const state = await stateOf(ctx, loaded);
+  // stateOf may have saved a new alert row: keep the loaded copy in step.
+  loaded.rows.alerts = state.rows.alerts;
   const all = Object.values(state.view.astronauts as Record<string, { alerts: { id: string; astronautId: string; indicator: string }[] }>).flatMap((a) => a.alerts);
-  const alert = all.find((a) => a.id === alertId);
+  // The id carries the fire time. If it differs slightly (an older client), fall back to the open alert for the
+  // same astronaut and indicator, which the id starts with: "<astronaut>-<indicator>-<time>".
+  const prefix = /^([a-z]+)-([a-z0-9]+)-/.exec(alertId);
+  const alert = all.find((a) => a.id === alertId) ?? (prefix ? all.find((a) => a.astronautId === prefix[1] && a.indicator === prefix[2]) : undefined);
   if (!alert) throw notFound("No open alert with that id in this session.");
   const row = state.rows.alerts.find((r) => r.astronautId === alert.astronautId && r.indicator === alert.indicator && !r.resolvedAt);
   if (!row) throw new Error("open alert has no stored row");
@@ -235,23 +331,29 @@ async function alertRow(ctx: Ctx, sessionId: string, alertId: string): Promise<A
 
 export async function acknowledgeAlert(ctx: Ctx, alertId: string, body: unknown) {
   const b = parse(AcknowledgeRequest, body);
-  const row = await alertRow(ctx, b.session, alertId);
-  if (!row.acknowledgedAt) await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: ctx.now() });
-  return { state: await stateOf(ctx, b.session) };
+  const loaded = await load(ctx, b.session);
+  const row = await alertRow(ctx, loaded, alertId);
+  if (!row.acknowledgedAt) {
+    row.acknowledgedAt = ctx.now();
+    await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: row.acknowledgedAt });
+  }
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 export async function logAlertAction(ctx: Ctx, alertId: string, body: unknown) {
   const b = parse(AlertActionRequest, body);
-  await capped(ctx, "alert_actions", b.session);
-  const row = await alertRow(ctx, b.session, alertId);
-  await ctx.store.insertAction(b.session, { alertEventId: row.id, kind: b.kind, note: b.note ?? null, at: ctx.now() });
-  return { state: await stateOf(ctx, b.session) };
+  const loaded = await load(ctx, b.session);
+  capped(loaded, "alert_actions");
+  const row = await alertRow(ctx, loaded, alertId);
+  loaded.rows.actions.push(await ctx.store.insertAction(b.session, { alertEventId: row.id, kind: b.kind, note: b.note ?? null, at: ctx.now() }));
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 export async function queueReport(ctx: Ctx, body: unknown) {
   const b = parse(ReportRequest, body);
-  await capped(ctx, "reports", b.session);
-  const { session } = await load(ctx, b.session);
+  const loaded = await load(ctx, b.session);
+  capped(loaded, "reports");
+  const { session } = loaded;
   const now = ctx.now();
   const row = await ctx.store.insertReport(b.session, {
     astronautId: b.astronaut,
@@ -261,7 +363,8 @@ export async function queueReport(ctx: Ctx, body: unknown) {
     queuedAt: now,
     sentAt: session.earthLinkUp ? now : null,
   });
-  return { report: row, state: await stateOf(ctx, b.session, b.astronaut) };
+  loaded.rows.reports.push(row);
+  return { report: row, state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 export async function demo(ctx: Ctx, body: unknown) {
@@ -270,19 +373,21 @@ export async function demo(ctx: Ctx, body: unknown) {
     await ctx.store.deleteSession(b.session);
     return { reset: true };
   }
-  const { session } = await load(ctx, b.session);
+  const session = await ctx.store.getSession(b.session);
+  if (!session) throw notFound("Unknown session. Open the app (GET /api/state) or POST /api/session first.");
   const now = ctx.now();
-  if (b.scenario !== undefined) {
+  // One update for all the settings in this request.
+  const patch: Parameters<Ctx["store"]["updateSession"]>[1] = {};
+  if (b.scenario !== undefined) Object.assign(patch, { scenario: b.scenario, scenarioTarget: b.target ?? session.scenarioTarget, scenarioStartedAt: now });
+  if (b.earthLinkUp !== undefined) patch.earthLinkUp = b.earthLinkUp;
+  if (b.sleepPeriod !== undefined) patch.sleepPeriod = b.sleepPeriod;
+  if (b.missionSetting !== undefined) patch.missionSetting = b.missionSetting;
+  if (b.astronaut !== undefined) patch.astronautId = b.astronaut;
+  await Promise.all([
     // As in the app: choosing a scenario resets entered readings, symptoms, the routine and alerts.
-    await ctx.store.clearScenarioRows(b.session);
-    await ctx.store.updateSession(b.session, { scenario: b.scenario, scenarioTarget: b.target ?? session.scenarioTarget, scenarioStartedAt: now });
-  }
-  if (b.earthLinkUp !== undefined) {
-    await ctx.store.updateSession(b.session, { earthLinkUp: b.earthLinkUp });
-    if (b.earthLinkUp) await ctx.store.sendQueuedReports(b.session, now);
-  }
-  if (b.sleepPeriod !== undefined) await ctx.store.updateSession(b.session, { sleepPeriod: b.sleepPeriod });
-  if (b.missionSetting !== undefined) await ctx.store.updateSession(b.session, { missionSetting: b.missionSetting });
-  if (b.astronaut !== undefined) await ctx.store.updateSession(b.session, { astronautId: b.astronaut });
-  return { state: await stateOf(ctx, b.session) };
+    b.scenario !== undefined ? ctx.store.clearScenarioRows(b.session) : undefined,
+    Object.keys(patch).length ? ctx.store.updateSession(b.session, patch) : undefined,
+    b.earthLinkUp ? ctx.store.sendQueuedReports(b.session, now) : undefined,
+  ]);
+  return { state: await stateOf(ctx, await load(ctx, b.session), b.viewer) };
 }

@@ -4,11 +4,19 @@
 // synchronous and live readings come from the shared simulator, with no need to send them over the network.
 // Polls /api/state every 5 seconds while the tab is visible. Actions apply locally at once and are posted to the
 // API; its answer replaces the local copy. Three failed calls in a row hand over to local mode (onFail).
+//
+// Actions during a save in flight (audit bugs A and B):
+// - Each action carries the time it happened (takenAt, loggedAt), so the server computes the same alert ids.
+// - A pending action stays in an overlay that is re-applied on top of every state from the server until its own
+//   request answers, so nothing flickers back.
+// - A follow-up that refers to something still being created (resolving a just-logged symptom, acknowledging the
+//   alert from a just-saved reading) waits for that create, then is sent with the server's id. Never dropped.
 import {
   POSTPONE_MIN,
   StateResponse,
   TICK_SEC,
   rebuildSession,
+  symptomIdOf,
   type AlertActionKind,
   type Astronaut,
   type ChartWindow,
@@ -21,6 +29,7 @@ import {
   type Report,
   type RoutineSummary,
   type ScenarioId,
+  type SessionEngine,
   type StateResponseT,
   type Symptom,
 } from "@missionvitals/shared";
@@ -55,13 +64,30 @@ export class HttpSource implements DataSource {
   /** Bumped by every action, so a poll that started before it can't overwrite its result. */
   private seq = 0;
   private pending = 0;
+  /** Actions not yet confirmed by the server, re-applied (at their own time) on top of each new server state. */
+  private overlay: { met: number; run: (e: SessionEngine) => void }[] = [];
+  /** Creates still in flight: "symptom:<local id>" and "reading:<astronaut>:<indicator>". */
+  private inflight = new Map<string, Promise<unknown>>();
+  /** Local symptom id to the server's, once its create has answered. */
+  private idMap = new Map<string, string>();
+  /** Who is looking. The server sends other astronauts' private rows only to the crew medical officer. */
+  private viewer: string | null = null;
 
   constructor(
     private readonly session: string,
     initial: StateResponseT,
     private readonly onFail: () => void,
+    viewer: string | null = null,
   ) {
+    this.viewer = viewer;
     this.apply(initial);
+  }
+
+  /** A different viewer may see different private rows: fetch them now. */
+  setViewer(astronautId: string | null): void {
+    if (astronautId === this.viewer) return;
+    this.viewer = astronautId;
+    void this.poll();
   }
 
   /* ----- clock and state ----- */
@@ -74,6 +100,19 @@ export class HttpSource implements DataSource {
     this.state = s;
     this.fetchedAt = Date.now();
     this.rebuilt = rebuildSession(s.session, s.rows, s.serverTime);
+    if (this.overlay.length) {
+      const now = this.rebuilt.clock.met(this.nowWall());
+      for (const op of this.overlay) {
+        this.rebuilt.setNow(op.met);
+        op.run(this.rebuilt.engine);
+      }
+      this.rebuilt.setNow(now);
+    }
+  }
+
+  /** The wall-clock ISO time of a mission time, on this session's clock. */
+  private wall(met: number): string {
+    return this.rebuilt.clock.wall(met);
   }
 
   /** The engine, with its clock moved to now. */
@@ -111,7 +150,7 @@ export class HttpSource implements DataSource {
     if (this.stopped || document.hidden) return;
     const started = this.seq;
     try {
-      const s = StateResponse.parse(await api(`state?session=${this.session}`));
+      const s = StateResponse.parse(await api(`state?session=${this.session}${this.viewer ? `&astronaut=${this.viewer}` : ""}`));
       this.failures = 0;
       if (this.pending || started !== this.seq) return;
       this.apply(s);
@@ -121,22 +160,66 @@ export class HttpSource implements DataSource {
     }
   }
 
-  /** Post an action; its answer (the new state) replaces the local copy. */
-  private send(path: string, body: Record<string, unknown>) {
+  /**
+   * Apply an action locally now, keep it in the overlay, and send it. `send` may wait for a create in flight first.
+   * When the server answers, the action leaves the overlay and the server's state replaces the local copy.
+   */
+  private act(run: (e: SessionEngine) => void, send: () => Promise<{ state?: unknown } | void>): Promise<unknown> {
+    // One time for the action, used now and on every replay, so its reading time and alert id never drift.
+    const op = { met: this.rebuilt.clock.met(this.nowWall()), run };
+    this.rebuilt.setNow(op.met);
+    run(this.rebuilt.engine);
+    this.overlay.push(op);
     this.seq++;
     this.pending++;
-    api<{ state?: unknown }>(path, { method: "POST", body: { session: this.session, ...body } })
+    this.emit();
+    const done = () => {
+      this.overlay = this.overlay.filter((o) => o !== op);
+    };
+    const p = send()
       .then((r) => {
         this.failures = 0;
-        if (r.state) {
-          this.apply(StateResponse.parse(r.state));
-          this.emit();
-        }
+        done();
+        if (r && r.state) this.apply(StateResponse.parse(r.state));
+        else this.apply(this.state);
+        this.emit();
+        return r;
       })
-      .catch((err) => this.fail(err))
+      .catch((err) => {
+        done();
+        this.apply(this.state);
+        this.emit();
+        this.fail(err);
+        throw err;
+      })
       .finally(() => {
         this.pending--;
       });
+    p.catch(() => undefined);
+    return p;
+  }
+
+  private post(path: string, body: Record<string, unknown>) {
+    return api<{ state?: unknown }>(path, { method: "POST", body: { session: this.session, viewer: this.viewer, ...body } });
+  }
+
+  /** Waits for a create in flight (ignoring its failure, which is reported on its own). */
+  private async after(key: string | undefined) {
+    const p = key ? this.inflight.get(key) : undefined;
+    if (p) await p.catch(() => undefined);
+  }
+
+  /** An alert id is "<astronaut>-<indicator>-<time>"; the create it may depend on is that reading. */
+  private readingKeyOf(alertId: string): string | undefined {
+    const m = /^([a-z]+)-([a-z0-9]+)-/.exec(alertId);
+    return m ? `reading:${m[1]}:${m[2]}` : undefined;
+  }
+
+  /** The open alert with this id, or the open one for the same astronaut and indicator. */
+  private alertIn(e: SessionEngine, alertId: string): string | undefined {
+    const m = /^([a-z]+)-([a-z0-9]+)-/.exec(alertId);
+    const list = m ? e.getAlerts(m[1]) : [];
+    return (list.find((a) => a.id === alertId) ?? list.find((a) => m && a.indicator === m[2]))?.id;
   }
 
   private onVisibility = () => {
@@ -192,90 +275,139 @@ export class HttpSource implements DataSource {
   /* ----- DataSource: actions (local at once, then the server) ----- */
 
   addReading(astronautId: string, indicator: IndicatorKey, reading: Omit<Reading, "t">, taskId?: string): Reading {
-    const r = this.e.addReading(astronautId, indicator, reading, taskId);
-    this.send("readings", {
-      astronaut: astronautId,
-      indicator,
-      value: reading.value,
-      value2: reading.value2,
-      pulse: reading.pulse,
-      timing: reading.timing,
-      stress: reading.stress,
-      tags: reading.tags,
-      note: reading.note,
-      device: reading.device,
-      taskId,
-    });
-    this.emit();
+    let r!: Reading;
+    let t: number | undefined;
+    const key = `reading:${astronautId}:${indicator}`;
+    const p = this.act(
+      (e) => {
+        r = e.addReading(astronautId, indicator, reading, taskId);
+        t ??= r.t;
+      },
+      () =>
+        this.post("readings", {
+          astronaut: astronautId,
+          indicator,
+          value: reading.value,
+          value2: reading.value2,
+          pulse: reading.pulse,
+          timing: reading.timing,
+          stress: reading.stress,
+          tags: reading.tags,
+          note: reading.note,
+          device: reading.device,
+          taskId,
+          takenAt: this.wall(t!),
+        }),
+    );
+    this.inflight.set(key, p);
+    void p.finally(() => this.inflight.get(key) === p && this.inflight.delete(key)).catch(() => undefined);
     return r;
   }
 
   completeTask(astronautId: string, taskId: string): void {
-    this.e.completeTask(astronautId, taskId);
-    this.send("routine/complete", { astronaut: astronautId, taskId });
-    this.emit();
+    void this.act((e) => e.completeTask(astronautId, taskId), () => this.post("routine/complete", { astronaut: astronautId, taskId }));
   }
 
   postponeTask(astronautId: string, taskId: string, minutes = POSTPONE_MIN): void {
-    this.e.postponeTask(astronautId, taskId, minutes);
-    this.send("routine/postpone", { astronaut: astronautId, taskId, minutes });
-    this.emit();
+    void this.act((e) => e.postponeTask(astronautId, taskId, minutes), () => this.post("routine/postpone", { astronaut: astronautId, taskId, minutes }));
   }
 
   addSymptom(astronautId: string, symptom: NewSymptom): Symptom {
-    const s = this.e.addSymptom(astronautId, symptom);
-    this.send("symptoms", { astronaut: astronautId, partId: symptom.partId, layer: symptom.layer, kind: symptom.kind, severity: symptom.severity, startedAt: symptom.startedAt, affectsWork: symptom.affectsWork, note: symptom.note });
-    this.emit();
+    let s!: Symptom;
+    let localId: string | undefined;
+    const p = this.act(
+      (e) => {
+        s = e.addSymptom(astronautId, symptom, localId);
+        localId ??= s.id;
+      },
+      () =>
+        this.post("symptoms", {
+          astronaut: astronautId,
+          partId: symptom.partId,
+          layer: symptom.layer,
+          kind: symptom.kind,
+          severity: symptom.severity,
+          startedAt: symptom.startedAt,
+          affectsWork: symptom.affectsWork,
+          note: symptom.note,
+          loggedAt: this.wall(s.t),
+        }).then((r) => {
+          const row = (r as { symptom?: { id: number } }).symptom;
+          if (row) this.idMap.set(localId!, symptomIdOf(row.id));
+          return r;
+        }),
+    );
+    const key = `symptom:${localId}`;
+    this.inflight.set(key, p);
+    void p.finally(() => this.inflight.delete(key)).catch(() => undefined);
     return s;
   }
 
   resolveSymptom(symptomId: string): void {
-    this.e.resolveSymptom(symptomId);
-    // A symptom not yet saved has a local id; the next state from the server brings its stored id.
-    if (symptomId.startsWith("sym-db-")) this.send(`symptoms/${symptomId}/resolve`, {});
-    this.emit();
+    const serverId = () => this.idMap.get(symptomId) ?? symptomId;
+    void this.act(
+      (e) => e.resolveSymptom(serverId()),
+      async () => {
+        // A symptom logged a moment ago may still be saving: wait for it, then resolve it by the server's id.
+        await this.after(`symptom:${symptomId}`);
+        const id = serverId();
+        if (!id.startsWith("sym-db-")) throw new Error("The symptom was not saved, so it can't be marked as gone on the server.");
+        return this.post(`symptoms/${id}/resolve`, {});
+      },
+    );
   }
 
   acknowledgeAlert(alertId: string): void {
-    this.e.acknowledgeAlert(alertId);
-    this.send(`alerts/${encodeURIComponent(alertId)}/acknowledge`, {});
-    this.emit();
+    void this.act(
+      (e) => {
+        const id = this.alertIn(e, alertId);
+        if (id) e.acknowledgeAlert(id);
+      },
+      async () => {
+        // The reading that opened this alert may still be saving: wait for it first.
+        await this.after(this.readingKeyOf(alertId));
+        return this.post(`alerts/${encodeURIComponent(alertId)}/acknowledge`, {});
+      },
+    );
   }
 
   logAction(alertId: string, kind: AlertActionKind, note?: string): void {
-    this.e.logAction(alertId, kind, note);
-    this.send(`alerts/${encodeURIComponent(alertId)}/actions`, { kind, note });
-    this.emit();
+    void this.act(
+      (e) => {
+        const id = this.alertIn(e, alertId);
+        if (id) e.logAction(id, kind, note);
+      },
+      async () => {
+        await this.after(this.readingKeyOf(alertId));
+        return this.post(`alerts/${encodeURIComponent(alertId)}/actions`, { kind, note });
+      },
+    );
   }
 
   queueReport(astronautId: string, report: NewReport): Report {
-    const r = this.e.queueReport(astronautId, report);
-    this.send("reports", { astronaut: astronautId, urgency: report.urgency, note: report.note, items: report.items, actions: report.actions, symptoms: report.symptoms });
-    this.emit();
+    let r!: Report;
+    void this.act(
+      (e) => {
+        r = e.queueReport(astronautId, report);
+      },
+      () => this.post("reports", { astronaut: astronautId, urgency: report.urgency, note: report.note, items: report.items, actions: report.actions, symptoms: report.symptoms }),
+    );
     return r;
   }
 
   setScenario(scenario: ScenarioId, astronautId: string): void {
-    this.e.setScenario(scenario, astronautId);
-    this.send("demo", { scenario, target: astronautId });
-    this.emit();
+    void this.act((e) => e.setScenario(scenario, astronautId), () => this.post("demo", { scenario, target: astronautId }));
   }
 
   setEarthLink(up: boolean): void {
-    this.e.setEarthLink(up);
-    this.send("demo", { earthLinkUp: up });
-    this.emit();
+    void this.act((e) => e.setEarthLink(up), () => this.post("demo", { earthLinkUp: up }));
   }
 
   setMissionSetting(setting: MissionSettingId): void {
-    this.e.setMissionSetting(setting);
-    this.send("demo", { missionSetting: setting });
-    this.emit();
+    void this.act((e) => e.setMissionSetting(setting), () => this.post("demo", { missionSetting: setting }));
   }
 
   setSleepPeriod(on: boolean): void {
-    this.e.setSleepPeriod(on);
-    this.send("demo", { sleepPeriod: on });
-    this.emit();
+    void this.act((e) => e.setSleepPeriod(on), () => this.post("demo", { sleepPeriod: on }));
   }
 }

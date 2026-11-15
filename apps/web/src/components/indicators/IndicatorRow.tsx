@@ -22,7 +22,7 @@ function reason(state: IndicatorState, now: number): string {
   if (ev.reason === "silent" && latest) return `${Math.max(1, Math.round((now - latest.t) / 60))} min`;
   if (ev.reason === "overdue") return "check overdue";
   if (ev.reason === "not-taken") return "not taken today";
-  if (ev.reason === "trend") return "near limit";
+  if (ev.reason === "trend") return "near demo limit";
   return "";
 }
 

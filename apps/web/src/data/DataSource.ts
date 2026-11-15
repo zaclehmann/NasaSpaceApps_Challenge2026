@@ -47,6 +47,8 @@ export interface DataSource {
   setScenario(scenario: ScenarioId, astronautId: string): void;
   setEarthLink(up: boolean): void;
   setMissionSetting(setting: MissionSettingId): void;
+  /** Who is looking (server mode): the server leaves out other astronauts' private data unless this is the CMO. */
+  setViewer?(astronautId: string | null): void;
   /** Solar storm scenario: the NASA DONKI events placed on the mission clock. Empty in other scenarios. */
   getSolarEvents(): ReplayedEvent[];
   setSleepPeriod(on: boolean): void;

@@ -43,7 +43,11 @@ describe("API handlers", () => {
     const { ctx } = setup();
     expect((await route(ctx, "GET", "/api/health", {}, undefined)).body).toMatchObject({ ok: true, db: "up" });
     expect((await route(ctx, "POST", "/api/session", {}, JSON.stringify({ id: "nope" }))).status).toBe(400);
-    expect((await route(ctx, "GET", "/api/state", { session: S2 }, undefined)).status).toBe(404);
+    // Opening the app is one request: /state creates a session it doesn't know yet.
+    expect((await route(ctx, "GET", "/api/state", { session: S2 }, undefined)).status).toBe(200);
+    // A write to an unknown session is refused.
+    const S3 = "33333333-3333-4333-8333-333333333333";
+    expect((await route(ctx, "POST", "/api/readings", {}, JSON.stringify({ session: S3, astronaut: "hana", indicator: "temp", value: 36.8, device: "thermometer" }))).status).toBe(404);
     expect((await route(ctx, "GET", "/api/nothing", {}, undefined)).status).toBe(404);
   });
 
@@ -131,5 +135,66 @@ describe("API handlers", () => {
     const r = (await h.demo(ctx, { session: S1, scenario: "low-spo2", target: "hana" })) as { state: { rows: { readings: unknown[] }; session: { scenario: string } } };
     expect(r.state.rows.readings).toHaveLength(0);
     expect(r.state.session.scenario).toBe("low-spo2");
+  });
+
+  it("keeps the time a reading was taken, clamped to the last 10 minutes and at most 5 s ahead", async () => {
+    const { ctx, store } = setup();
+    await h.createSession(ctx, { id: S1 });
+    const now = Date.parse(ctx.now());
+    const post = (takenAt: string) => h.postReading(ctx, { session: S1, astronaut: "hana", indicator: "temp", value: 36.8, device: "thermometer", takenAt });
+    await post(new Date(now - 90_000).toISOString());
+    await post(new Date(now - 3 * 3600_000).toISOString());
+    await post(new Date(now + 60_000).toISOString());
+    const t = store.readings.map((r) => Date.parse(r.takenAt) - now);
+    expect(t).toEqual([-90_000, -h.ACTION_TIME_PAST_MS, h.ACTION_TIME_FUTURE_MS]);
+  });
+
+  it("acknowledges the open alert for the same astronaut and indicator when the id's time differs", async () => {
+    const { ctx, store } = setup();
+    await h.createSession(ctx, { id: S1 });
+    const r = await h.postReading(ctx, { session: S1, astronaut: "mira", indicator: "bp", value: 150, value2: 95, device: "cuff" });
+    const id = (r.alert as { id: string }).id.replace(/-(\d+)$/, (_m, n: string) => `-${Number(n) + 5}`);
+    await h.acknowledgeAlert(ctx, id, { session: S1 });
+    expect(store.alerts.find((a) => a.indicator === "bp")?.acknowledgedAt).toBeTruthy();
+  });
+
+  it("refuses impossible values with the form's words and range", async () => {
+    const { ctx } = setup();
+    await h.createSession(ctx, { id: S1 });
+    const post = async (body: Record<string, unknown>) => {
+      const r = await route(ctx, "POST", "/api/readings", {}, JSON.stringify({ session: S1, astronaut: "hana", ...body }));
+      return { status: r.status, error: (r.body as { error?: string }).error };
+    };
+    expect(await post({ indicator: "bp", value: 99999, value2: -50, device: "cuff" })).toEqual({ status: 400, error: "value: Systolic must be between 60 and 250 mmHg" });
+    expect(await post({ indicator: "bp", value: 120, value2: -50, device: "cuff" })).toEqual({ status: 400, error: "value2: Diastolic must be between 30 and 150 mmHg" });
+    expect(await post({ indicator: "bp", value: 120, value2: 130, device: "cuff" })).toEqual({ status: 400, error: "value2: Diastolic must be lower than systolic" });
+    expect(await post({ indicator: "temp", value: 1e308, device: "thermometer" })).toEqual({ status: 400, error: "value: Temperature must be between 30 and 43 °C" });
+    expect(await post({ indicator: "glucose", value: 5, device: "glucometer" })).toEqual({ status: 400, error: "value: Blood glucose must be between 20 and 600 mg/dL" });
+    expect(await post({ indicator: "mood", value: 2.5, device: "self" })).toEqual({ status: 400, error: "value: Mood must be a whole number from 1 to 5" });
+    expect((await post({ indicator: "temp", value: 43, device: "thermometer" })).status).toBe(200);
+  });
+
+  it("hides another astronaut's symptom details and private mood fields unless the viewer is the crew medical officer", async () => {
+    const { ctx } = setup();
+    await h.createSession(ctx, { id: S1 });
+    await h.postSymptom(ctx, { session: S1, astronaut: "hana", viewer: "hana", partId: "o-head", layer: "organs", kind: "Headache", severity: 4, note: "since breakfast", startedAt: 141 * 86400 + 14 * 3600, affectsWork: false });
+    await h.postReading(ctx, { session: S1, astronaut: "hana", viewer: "hana", indicator: "mood", value: 2, stress: 4, tags: ["Tired"], note: "rough night", device: "self" });
+    const as = async (viewer?: string) => (await h.getState(ctx, { session: S1, ...(viewer && { astronaut: viewer }) })).rows;
+    const mira = await as("mira");
+    // Mira gets Hana's symptom hidden: its status level and times, no body part, symptom, severity or note.
+    const hidden = mira.symptoms.filter((x) => x.astronautId === "hana");
+    expect(hidden).toHaveLength(1);
+    expect(hidden[0]).toMatchObject({ hidden: true, level: "caution", bodyPart: null, symptom: null, severity: null, note: null });
+    expect(hidden[0].loggedAt).toBeTruthy();
+    // Hana's mood value stays (her overall status), without the private fields.
+    expect(mira.readings.filter((x) => x.astronautId === "hana" && x.indicator === "mood").map((x) => [x.stress, x.tags, x.note])).toEqual([[null, null, null]]);
+    const tomas = await as("tomas");
+    // The crew medical officer gets the full row.
+    expect(tomas.symptoms.filter((x) => x.astronautId === "hana")).toMatchObject([{ bodyPart: "o-head", symptom: "Headache", severity: 4, note: "since breakfast" }]);
+    expect(tomas.symptoms[0].hidden).toBeUndefined();
+    expect(tomas.readings.find((x) => x.astronautId === "hana" && x.indicator === "mood")?.note).toBe("rough night");
+    expect((await as("hana")).symptoms).toHaveLength(1);
+    // The crew picker (no one chosen yet) gets only hidden symptoms.
+    expect((await as()).symptoms.every((x) => x.hidden && x.bodyPart === null)).toBe(true);
   });
 });

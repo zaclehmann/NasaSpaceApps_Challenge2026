@@ -25,6 +25,12 @@ export function missionDay(sec: number): number {
   return Math.floor(sec / DAY) + 1;
 }
 
+/** The one mission-time format in the interface: "Mission day 142, 14:33 MET" (day 142 is 141 days elapsed). */
+export function formatMissionTime(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  return `Mission day ${missionDay(s)}, ${pad(Math.floor((s % DAY) / 3600))}:${pad(Math.floor((s % 3600) / 60))} MET`;
+}
+
 /** MET at the start of the mission day that contains `sec`. */
 export function startOfDay(sec: number): number {
   return Math.floor(sec / DAY) * DAY;

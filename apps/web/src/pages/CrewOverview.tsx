@@ -5,7 +5,7 @@
 import clsx from "clsx";
 import { Lock } from "lucide-react";
 import { useState } from "react";
-import { INDICATORS, PART_BY_ID, formatClock, formatMet, symptomStatus, type IndicatorKey } from "@missionvitals/shared";
+import { INDICATORS, PART_BY_ID, formatClock, formatMissionTime, symptomStatus, type IndicatorKey } from "@missionvitals/shared";
 import { CrewMemberSheet } from "../components/crew/CrewMemberSheet";
 import { attentionFor, canSeePrivate, routineWords } from "../components/crew/crewAttention";
 import { useSwitchAstronaut } from "../components/layout/Sidebar";
@@ -107,7 +107,7 @@ function Content() {
       <div>
         <h1 className="type-title">Crew overview</h1>
         <p className="mt-1 type-small text-muted-foreground">
-          Values at MET {formatMet(mission.met)}.{" "}
+          Values at {formatMissionTime(mission.met)}.{" "}
           {viewer
             ? viewer.isCmo
               ? "You are the crew medical officer: mood and symptoms are shown, and you can open any crewmate."

@@ -200,11 +200,15 @@ describe("explanations", () => {
     expect(ev.status).toBe("caution");
     expect(statusLine("hr", ev, NOW)).toBe("Above your range of 50 to 110 bpm for 9 minutes.");
   });
-  it("states every threshold plainly, without the word demo on screen", () => {
+  it("says demo limit and demo target wherever a sentence names one; in-range sentences stay plain", () => {
     const inRange: [IndicatorKey, number][] = [["hr", 80], ["spo2", 97], ["temp", 36.7], ["glucose", 90], ["sleep", 7], ["exercise", 130], ["radiation", 9]];
-    for (const [k, v] of inRange) expect(statusLine(k, evaluate(k, one(v), { now: NOW }), NOW)).not.toMatch(/demo/i);
-    expect(statusLine("bp", evaluate("bp", one(148, 92), { now: NOW }), NOW)).toBe("Systolic 148 mmHg is above the limit of 135 mmHg.");
-    expect(statusLine("bp", evaluate("bp", one(118, 58), { now: NOW }), NOW)).toBe("Diastolic 58 mmHg is below the limit of 60 mmHg.");
+    for (const [k, v] of inRange) {
+      const line = statusLine(k, evaluate(k, one(v), { now: NOW }), NOW);
+      if (k === "exercise") expect(line).toMatch(/demo target/);
+      else expect(line).not.toMatch(/demo/i);
+    }
+    expect(statusLine("bp", evaluate("bp", one(148, 92), { now: NOW }), NOW)).toBe("Systolic 148 mmHg is above the demo limit of 135 mmHg.");
+    expect(statusLine("bp", evaluate("bp", one(118, 58), { now: NOW }), NOW)).toBe("Diastolic 58 mmHg is below the demo limit of 60 mmHg.");
   });
   it("uses the after-meal range for an after-meal glucose reading", () => {
     const ev = evaluate("glucose", one(150, undefined, NOW, "after-meal"), { now: NOW });
@@ -212,9 +216,9 @@ describe("explanations", () => {
     expect(ruleText("glucose", ev)).toBe("Rule: Caution when blood glucose after a meal is above 140 mg/dL.");
   });
   it("explains exercise against the target", () => {
-    expect(statusLine("exercise", evaluate("exercise", one(90), { now: NOW }), NOW)).toBe("90 minutes today. Below the target of 120 minutes.");
+    expect(statusLine("exercise", evaluate("exercise", one(90), { now: NOW }), NOW)).toBe("90 minutes today. Below the demo target of 120 minutes.");
     const two: Reading[] = [{ t: NOW - DAY, value: 40, device: "shirt" }, { t: NOW, value: 45, device: "shirt" }];
-    expect(statusLine("exercise", evaluate("exercise", two, { now: NOW }), NOW)).toBe("Below 60 minutes on two days running. The target is 120 minutes a day.");
+    expect(statusLine("exercise", evaluate("exercise", two, { now: NOW }), NOW)).toBe("Below 60 minutes on two days running. The demo target is 120 minutes a day.");
   });
   it("reports missing data as a duration, not a number", () => {
     expect(statusLine("spo2", evaluate("spo2", one(97, undefined, NOW - 360), { now: NOW }), NOW)).toBe("No reading for 6 minutes.");

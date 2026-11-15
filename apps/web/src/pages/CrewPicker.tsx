@@ -37,8 +37,8 @@ function NextCheck({ e, now }: { e: RoutineEntry | undefined; now: number }) {
   return (
     <span className="flex min-w-0 flex-col">
       <span className={clsx("truncate type-small text-foreground", (k === "due" || k === "overdue") && "font-medium")}>{e.task.label}</span>
-      <span className={clsx("flex items-center gap-1.5 type-caption tabular-nums", k === "due" ? "font-medium text-warning-text" : k === "overdue" ? "text-watch-text" : "text-muted-foreground")}>
-        {k === "due" && <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />}
+      {/* Due now reads as it does in the indicator list: a routine matter, in plain bold text, no status colour. */}
+      <span className={clsx("flex items-center gap-1.5 type-caption tabular-nums", k === "due" ? "font-medium text-foreground" : k === "overdue" ? "text-watch-text" : "text-muted-foreground")}>
         {k === "overdue" && <BadgeIcon status="watch" size={12} />}
         {nextWhen(e, now)}
       </span>
@@ -68,10 +68,14 @@ function summary(crew: HealthView[]): string {
 const COLS = "md:grid-cols-[minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(200px,1.4fr)_minmax(110px,0.8fr)]";
 
 /** One crew row. While its check is due it keeps the tint and red bar, and blinks 5 times or until opened. */
-function PickerRow({ rowKey, className, children, ...rest }: { rowKey: string | null } & ButtonHTMLAttributes<HTMLButtonElement>) {
+/**
+ * One crew row. A due check gives it a neutral tint and bar, and it blinks 5 times or until opened. Red (tint and
+ * bar) is only for an astronaut at Warning, as everywhere else: red is reserved for Warning (ui.md 3).
+ */
+function PickerRow({ rowKey, warning, className, children, ...rest }: { rowKey: string | null; warning: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const { pulse, onAnimationEnd } = usePulse("row", rowKey, rowKey ? [opened(rowKey), acted(rowKey)] : []);
   return (
-    <button key={rowKey ?? "calm"} type="button" data-row className={clsx(className, pulse && "anim-row-alert")} onAnimationEnd={onAnimationEnd} {...rest}>
+    <button key={rowKey ?? "calm"} type="button" data-row className={clsx(className, pulse && (warning ? "anim-row-alert-warning" : "anim-row-alert"))} onAnimationEnd={onAnimationEnd} {...rest}>
       {children}
     </button>
   );
@@ -121,8 +125,10 @@ export default function CrewPicker() {
         <span className="type-body font-semibold">MissionVitals</span>
         <span className="flex gap-4 whitespace-nowrap tabular-nums">
           <span className="max-sm:hidden">{mission.name}</span>
-          <span className="text-muted-foreground">Mission day {missionDay(mission.met)}</span>
-          <span className="text-muted-foreground max-sm:hidden">{formatClock(mission.met)} MET</span>
+          <span className="text-muted-foreground">
+            Mission day {missionDay(mission.met)}
+            <span className="max-sm:hidden">, {formatClock(mission.met)} MET</span>
+          </span>
         </span>
       </header>
       <main className="mx-auto max-w-[1100px] px-4 pt-[10vh] pb-12 md:px-6">
@@ -151,6 +157,7 @@ export default function CrewPicker() {
               return (
                 <li key={v.astronaut.id}>
                   <PickerRow
+                    warning={v.overall === "warning"}
                     rowKey={key}
                     onClick={() => {
                       if (key) mark(opened(key));
@@ -162,7 +169,7 @@ export default function CrewPicker() {
                     className={clsx(
                       "group grid min-h-[72px] w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-5 gap-y-2 px-4 py-3 text-left transition-colors duration-[120ms] hover:bg-muted focus-visible:-outline-offset-2",
                       COLS,
-                      dueNow && "row-due",
+                      v.overall === "warning" ? "row-warning" : dueNow && "row-due",
                     )}
                   >
                     <span className="flex min-w-0 flex-col">

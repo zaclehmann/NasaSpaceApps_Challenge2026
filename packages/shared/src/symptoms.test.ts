@@ -55,3 +55,9 @@ describe("symptomRuleText", () => {
     expect(symptomRuleText(s({ resolvedAt: NOW - 1 }), NOW)).toMatch(/Resolved/);
   });
 });
+
+describe("hidden symptoms (a crewmate's, for someone who isn't the CMO)", () => {
+  const base = { severity: 0, startedAt: 0, affectsWork: false, hidden: true as const };
+  it("count with the level the server gave", () => expect(symptomStatus({ ...base, level: "warning" }, 100)).toBe("warning"));
+  it("stop counting once resolved", () => expect(symptomStatus({ ...base, level: "warning", resolvedAt: 50 }, 100)).toBeNull());
+});

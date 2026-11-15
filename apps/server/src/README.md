@@ -1,2 +1,2 @@
 <!-- AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann. -->
-API handlers: plain functions that the Vercel functions in `/api` call. Filled in Phase S.
+API handlers, storage (Supabase and in-memory), router and the Vercel adapter, with their tests.

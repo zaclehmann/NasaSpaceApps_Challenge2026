@@ -21609,7 +21609,8 @@ var toSession = (r) => ({
 	scenarioStartedAt: String(r.scenario_started_at),
 	earthLinkUp: Boolean(r.earth_link_up),
 	sleepPeriod: Boolean(r.sleep_period),
-	missionSetting: r.mission_setting
+	missionSetting: r.mission_setting,
+	lastSeenAt: r.last_seen_at ? String(r.last_seen_at) : void 0
 });
 var toReading = (r) => ({
 	id: Number(r.id),
@@ -21740,25 +21741,38 @@ var SupabaseStore = class {
 			"alert_events"
 		]) check(await this.db.from(t).delete().eq("session_id", id), `clear ${t}`);
 	}
-	async loadRows(id) {
-		const [readings, symptoms, routine, alerts, reports] = await Promise.all([
+	/** Six queries in parallel: one round trip to the database. Alert actions come through their alert's session. */
+	rowQueries(id) {
+		return [
 			this.db.from("entered_readings").select("*").eq("session_id", id).order("taken_at"),
 			this.db.from("symptoms").select("*").eq("session_id", id).order("logged_at"),
 			this.db.from("routine_events").select("*").eq("session_id", id).order("at"),
 			this.db.from("alert_events").select("*").eq("session_id", id).order("opened_at"),
+			this.db.from("alert_actions").select("id, alert_event_id, kind, note, at, alert_events!inner(session_id)").eq("alert_events.session_id", id).order("at"),
 			this.db.from("reports").select("*").eq("session_id", id).order("queued_at")
-		]);
-		const alertRows = (check(alerts, "load alerts") ?? []).map(toAlert);
-		const ids = alertRows.map((a) => a.id);
-		const actions = ids.length ? check(await this.db.from("alert_actions").select("*").in("alert_event_id", ids).order("at"), "load actions") : [];
+		];
+	}
+	toRows(res) {
+		const [readings, symptoms, routine, alerts, actions, reports] = res.map((r, i) => check(r, `load rows ${i}`) ?? []);
 		return {
-			readings: (check(readings, "load readings") ?? []).map(toReading),
-			symptoms: (check(symptoms, "load symptoms") ?? []).map(toSymptom),
-			routine: (check(routine, "load routine") ?? []).map(toRoutine),
-			alerts: alertRows,
-			actions: (actions ?? []).map(toAction),
-			reports: (check(reports, "load reports") ?? []).map(toReport)
+			readings: readings.map(toReading),
+			symptoms: symptoms.map(toSymptom),
+			routine: routine.map(toRoutine),
+			alerts: alerts.map(toAlert),
+			actions: actions.map(toAction),
+			reports: reports.map(toReport)
 		};
+	}
+	async loadRows(id) {
+		return this.toRows(await Promise.all(this.rowQueries(id)));
+	}
+	async getSessionWithRows(id) {
+		const [session, ...rows] = await Promise.all([this.db.from("sessions").select("*").eq("id", id).maybeSingle(), ...this.rowQueries(id)]);
+		const s = check(session, "get session");
+		return s ? {
+			session: toSession(s),
+			rows: this.toRows(rows)
+		} : null;
 	}
 	async count(table, sessionId) {
 		if (table === "alert_actions") {
@@ -21834,11 +21848,7 @@ var SupabaseStore = class {
 			acknowledged_at: r.acknowledgedAt,
 			resolved_at: r.resolvedAt
 		};
-		check(await this.db.from("alert_events").upsert(row, {
-			onConflict: "session_id,astronaut_id,indicator,opened_at",
-			ignoreDuplicates: true
-		}), "insert alert");
-		return toAlert(check(await this.db.from("alert_events").select("*").eq("session_id", sessionId).eq("astronaut_id", r.astronautId).eq("indicator", r.indicator).eq("opened_at", r.openedAt).single(), "read alert"));
+		return toAlert(check(await this.db.from("alert_events").upsert(row, { onConflict: "session_id,astronaut_id,indicator,opened_at" }).select().single(), "insert alert"));
 	}
 	async updateAlert(sessionId, rowId, p) {
 		const row = {};
@@ -22900,6 +22910,22 @@ var BODY_PARTS = [
 	...pair("s-foot", "ankle and foot", "skeleton", BOTH, MSK, EX)
 ];
 Object.fromEntries(BODY_PARTS.map((p) => [p.id, p]));
+// packages/shared/src/symptoms.ts
+/** Demo: an active symptom older than this is Caution even if mild. */
+var SYMPTOM_LASTING_SEC = 2 * DAY;
+/**
+* Demo status for one symptom, or null once it is resolved (it then adds nothing to its region).
+* Warning: severity 7 or more, or it affects work.
+* Caution: severity 4 to 6, or it has lasted more than 2 days.
+* Watch: any other active symptom (severity 0 to 3).
+*/
+function symptomStatus(s, now) {
+	if (s.resolvedAt !== void 0 && s.resolvedAt <= now) return null;
+	if (s.hidden) return s.level ?? null;
+	if (s.severity >= 7 || s.affectsWork) return "warning";
+	if (s.severity >= 4 || now - s.startedAt > SYMPTOM_LASTING_SEC) return "caution";
+	return "watch";
+}
 var donki_2024_05_default = {
 	source: {
 		"urls": [
@@ -28301,6 +28327,101 @@ ZodOptional.create;
 ZodNullable.create;
 ZodEffects.createWithPreprocess;
 ZodPipeline.create;
+// packages/shared/src/entryRanges.ts
+var ENTRY_RANGES = {
+	systolic: {
+		label: "Systolic",
+		min: 60,
+		max: 250,
+		unit: "mmHg"
+	},
+	diastolic: {
+		label: "Diastolic",
+		min: 30,
+		max: 150,
+		unit: "mmHg"
+	},
+	pulse: {
+		label: "Pulse",
+		min: 30,
+		max: 220,
+		unit: "bpm"
+	},
+	temp: {
+		label: "Temperature",
+		min: 30,
+		max: 43,
+		unit: "°C"
+	},
+	glucose: {
+		label: "Blood glucose",
+		min: 20,
+		max: 600,
+		unit: "mg/dL"
+	},
+	sleep: {
+		label: "Hours slept",
+		min: 0,
+		max: 16,
+		unit: "h"
+	},
+	exercise: {
+		label: "Exercise today",
+		min: 0,
+		max: 300,
+		unit: "min"
+	},
+	mood: {
+		label: "Mood",
+		min: 1,
+		max: 5,
+		unit: "",
+		integer: true
+	},
+	stress: {
+		label: "Stress",
+		min: 1,
+		max: 5,
+		unit: "",
+		integer: true
+	}
+};
+/** "Systolic must be between 60 and 250 mmHg"; "Mood must be a whole number from 1 to 5". */
+function rangeMessage(r) {
+	if (r.integer) return `${r.label} must be a whole number from ${r.min} to ${r.max}`;
+	return `${r.label} must be between ${r.min} and ${r.max}${r.unit ? ` ${r.unit}` : ""}`;
+}
+/** Undefined when `value` is inside the range, otherwise the message. */
+function outOfRange(r, value) {
+	if (!Number.isFinite(value) || value < r.min || value > r.max || r.integer && !Number.isInteger(value)) return rangeMessage(r);
+}
+/** The field and message for the first value of an entered reading outside its range, or undefined. */
+function readingRangeError(indicator, r) {
+	const check = (field, key, v) => {
+		const message = v === void 0 ? void 0 : outOfRange(ENTRY_RANGES[key], v);
+		return message ? {
+			field,
+			message
+		} : void 0;
+	};
+	switch (indicator) {
+		case "bp":
+			if (r.value2 === void 0) return {
+				field: "value2",
+				message: "Enter diastolic in mmHg"
+			};
+			return check("value", "systolic", r.value) || check("value2", "diastolic", r.value2) || (r.value2 >= r.value ? {
+				field: "value2",
+				message: "Diastolic must be lower than systolic"
+			} : void 0) || check("pulse", "pulse", r.pulse);
+		case "temp":
+		case "glucose":
+		case "sleep":
+		case "exercise": return check("value", indicator, r.value);
+		case "mood": return check("value", "mood", r.value) || check("stress", "stress", r.stress);
+		default: return;
+	}
+}
 // packages/shared/src/api/schemas.ts
 var SessionId = stringType().uuid({ message: "session must be a UUID" });
 var AstronautId = enumType([
@@ -28327,7 +28448,7 @@ var EnteredIndicator = enumType([
 	"exercise",
 	"mood"
 ]);
-var ChartWindowZ = enumType([
+enumType([
 	"1h",
 	"24h",
 	"7d",
@@ -28377,18 +28498,19 @@ var UrgencyZ = enumType([
 var Iso = stringType().datetime({ offset: true });
 var Note = stringType().max(500, { message: "note must be 500 characters or fewer" });
 var ShortId = stringType().min(1).max(40);
+/** Who is looking at the screen. The answer leaves out other astronauts' private rows unless this is the CMO. */
+var Viewer = { viewer: enumType([
+	"hana",
+	"mira",
+	"tomas"
+]).nullable().optional() };
 var SessionRequest = objectType({ id: SessionId }).strict();
 var StateQuery = objectType({
 	session: SessionId,
 	astronaut: AstronautId.optional()
 });
-var ReadingsQuery = objectType({
-	session: SessionId,
-	astronaut: AstronautId,
-	indicator: IndicatorKeyZ,
-	window: ChartWindowZ
-});
 var ReadingRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	indicator: EnteredIndicator,
@@ -28404,9 +28526,19 @@ var ReadingRequest = objectType({
 	tags: arrayType(stringType().max(40)).max(10).optional(),
 	note: Note.optional(),
 	device: DeviceIdZ,
-	taskId: ShortId.optional()
-}).strict();
+	taskId: ShortId.optional(),
+	/** When it was taken (wall clock, from the session clock). The server keeps it within the last 10 minutes. */
+	takenAt: Iso.optional()
+}).strict().superRefine((r, ctx) => {
+	const e = readingRangeError(r.indicator, r);
+	if (e) ctx.addIssue({
+		code: ZodIssueCode.custom,
+		path: [e.field],
+		message: e.message
+	});
+});
 var SymptomRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	partId: ShortId,
@@ -28416,22 +28548,33 @@ var SymptomRequest = objectType({
 	/** MET seconds when it started, as the app shows it. */
 	startedAt: numberType().finite(),
 	affectsWork: booleanType(),
-	note: Note.optional()
+	note: Note.optional(),
+	/** When it was logged (wall clock). The server keeps it within the last 10 minutes. */
+	loggedAt: Iso.optional()
 }).strict();
-var ResolveSymptomRequest = objectType({ session: SessionId }).strict();
+var ResolveSymptomRequest = objectType({
+	...Viewer,
+	session: SessionId
+}).strict();
 var RoutineRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	taskId: ShortId
 }).strict();
 var PostponeRequest = RoutineRequest.extend({ minutes: numberType().int().min(1).max(1440) }).strict();
-var AcknowledgeRequest = objectType({ session: SessionId }).strict();
+var AcknowledgeRequest = objectType({
+	...Viewer,
+	session: SessionId
+}).strict();
 var AlertActionRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	kind: AlertActionKindZ,
 	note: Note.optional()
 }).strict();
 var ReportRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	urgency: UrgencyZ,
@@ -28452,6 +28595,7 @@ var ReportRequest = objectType({
 	symptoms: arrayType(stringType().max(200)).max(30).optional()
 }).strict();
 var DemoRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	scenario: ScenarioIdZ.optional(),
 	target: AstronautId.optional(),
@@ -28470,7 +28614,9 @@ var SessionInfo = objectType({
 	scenarioStartedAt: Iso,
 	earthLinkUp: booleanType(),
 	sleepPeriod: booleanType(),
-	missionSetting: MissionSettingIdZ
+	missionSetting: MissionSettingIdZ,
+	/** When the session last made a request; written at most once a minute. */
+	lastSeenAt: Iso.optional()
 });
 var ReadingRow = objectType({
 	id: numberType(),
@@ -28491,18 +28637,28 @@ var ReadingRow = objectType({
 	taskId: stringType().nullable(),
 	takenAt: Iso
 });
+/**
+* A symptom row. For a crewmate's symptom sent to someone who isn't the crew medical officer it is `hidden`:
+* body part, symptom, severity, note, start and "affects work" are null, and `level` carries its status.
+*/
 var SymptomRow = objectType({
 	id: numberType(),
 	astronautId: AstronautId,
-	bodyPart: stringType(),
-	layer: BodyLayerZ,
-	symptom: stringType(),
-	severity: numberType(),
-	affectsWork: booleanType(),
+	bodyPart: stringType().nullable(),
+	layer: BodyLayerZ.nullable(),
+	symptom: stringType().nullable(),
+	severity: numberType().nullable(),
+	affectsWork: booleanType().nullable(),
 	note: stringType().nullable(),
-	startedAt: Iso,
+	startedAt: Iso.nullable(),
 	loggedAt: Iso,
-	resolvedAt: Iso.nullable()
+	resolvedAt: Iso.nullable(),
+	hidden: booleanType().optional(),
+	level: enumType([
+		"watch",
+		"caution",
+		"warning"
+	]).nullable().optional()
 });
 var RoutineRow = objectType({
 	id: numberType(),
@@ -28618,13 +28774,22 @@ function rebuildSession(session, rows, nowWall) {
 		steps.push({
 			t: at(s.loggedAt),
 			order: 3,
-			run: () => engine.addSymptom(s.astronautId, {
-				partId: s.bodyPart,
-				layer: s.layer,
-				kind: s.symptom,
-				severity: s.severity,
-				startedAt: at(s.startedAt),
-				affectsWork: s.affectsWork,
+			run: () => engine.addSymptom(s.astronautId, s.hidden ? {
+				partId: "",
+				layer: "organs",
+				kind: "",
+				severity: 0,
+				startedAt: at(s.loggedAt),
+				affectsWork: false,
+				hidden: true,
+				level: s.level ?? null
+			} : {
+				partId: s.bodyPart ?? "",
+				layer: s.layer ?? "organs",
+				kind: s.symptom ?? "",
+				severity: s.severity ?? 0,
+				startedAt: at(s.startedAt ?? s.loggedAt),
+				affectsWork: s.affectsWork ?? false,
 				...s.note !== null && { note: s.note }
 			}, symptomIdOf(s.id))
 		});
@@ -28699,21 +28864,47 @@ function rebuildSession(session, rows, nowWall) {
 }
 /** The crew list, so callers don't need the simulator import. */
 var SESSION_CREW = CREW;
+/** How far back and ahead a client-sent action time may be: it's clamped into this window around now. */
+var ACTION_TIME_PAST_MS = 6e5;
+var ACTION_TIME_FUTURE_MS = 5e3;
+/**
+* The time an action happened, as the browser sent it, kept within [now - 10 min, now + 5 s]. Using the
+* browser's time (not the moment the request arrived) gives browser and server the same alert ids and fire times.
+*/
+function actionTime(sent, now) {
+	const n = Date.parse(now);
+	if (!sent) return now;
+	const t = Math.min(n + ACTION_TIME_FUTURE_MS, Math.max(n - ACTION_TIME_PAST_MS, Date.parse(sent)));
+	return new Date(t).toISOString();
+}
 function parse(schema, input) {
 	const r = schema.safeParse(input);
 	if (!r.success) throw badRequest(zodMessage(r.error));
 	return r.data;
 }
+/** The session and all its rows, in one round of parallel queries. */
 async function load(ctx, sessionId) {
-	const session = await ctx.store.getSession(sessionId);
-	if (!session) throw notFound("Unknown session. Create it with POST /api/session first.");
-	return {
-		session,
-		rows: await ctx.store.loadRows(sessionId)
-	};
+	const loaded = await ctx.store.getSessionWithRows(sessionId);
+	if (!loaded) throw notFound("Unknown session. Open the app (GET /api/state) or POST /api/session first.");
+	return loaded;
 }
-async function capped(ctx, table, sessionId) {
-	if (await ctx.store.count(table, sessionId) >= 500) throw new ApiError(429, `This demo session has reached its limit of 500 ${table.replace("_", " ")}. Reset the demo to start again.`);
+var ROWS_OF = {
+	entered_readings: "readings",
+	symptoms: "symptoms",
+	routine_events: "routine",
+	alert_events: "alerts",
+	alert_actions: "actions",
+	reports: "reports"
+};
+/** The 500-row cap, counted from the rows already loaded (no count query). */
+function capped(loaded, table) {
+	if (loaded.rows[ROWS_OF[table]].length >= 500) throw new ApiError(429, `This demo session has reached its limit of 500 ${table.replace("_", " ")}. Reset the demo to start again.`);
+}
+/** last_seen_at, written at most once a minute so polls don't write every 5 seconds. */
+async function touch(ctx, session) {
+	const now = ctx.now();
+	if (session.lastSeenAt && Date.parse(now) - Date.parse(session.lastSeenAt) < 6e4) return;
+	await ctx.store.updateSession(session.id, { lastSeenAt: now }).catch(() => void 0);
 }
 /**
 * Saves alert openings, closings and level changes. An open alert is matched to the unresolved row for the same
@@ -28726,7 +28917,7 @@ async function persistAlerts(ctx, session, rows, engine, wall) {
 	for (const a of open) {
 		const row = out.find((r) => r.astronautId === a.astronautId && r.indicator === a.indicator && !r.resolvedAt);
 		if (!row) {
-			if (await ctx.store.count("alert_events", session.id) >= 500) continue;
+			if (out.length >= 500) continue;
 			const created = await ctx.store.insertAlert(session.id, {
 				astronautId: a.astronautId,
 				indicator: a.indicator,
@@ -28754,19 +28945,73 @@ async function persistAlerts(ctx, session, rows, engine, wall) {
 	}
 	return out;
 }
-/** Rebuild the session, save alert changes, and return what the screen needs. */
-async function stateOf(ctx, sessionId, viewer) {
-	const { session, rows } = await load(ctx, sessionId);
+/** May this viewer see this astronaut's private data (symptoms, mood)? The app's rule: themselves, or the CMO. */
+function canSee(viewer, astronautId) {
+	if (!viewer) return false;
+	return viewer === astronautId || (SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false);
+}
+/**
+* The rows this viewer may receive, unless the viewer is the crew medical officer:
+* - other astronauts' symptoms are hidden: id, astronaut, status level, logged and resolved times only (no body
+*   part, symptom, severity or note), so the screen shows "Symptom logged" with its status and it still counts
+*   toward that astronaut's status;
+* - their mood check-ins lose the private fields (stress, tags, note); the value stays for their status, and the
+*   screen shows their mood as Private;
+* - their reports lose the symptoms line.
+*/
+function rowsFor(rows, viewer, clock, nowMet) {
+	return {
+		...rows,
+		readings: rows.readings.map((r) => r.indicator !== "mood" || canSee(viewer, r.astronautId) ? r : {
+			...r,
+			stress: null,
+			tags: null,
+			note: null
+		}),
+		symptoms: rows.symptoms.map((s) => canSee(viewer, s.astronautId) ? s : {
+			id: s.id,
+			astronautId: s.astronautId,
+			bodyPart: null,
+			layer: null,
+			symptom: null,
+			severity: null,
+			affectsWork: null,
+			note: null,
+			startedAt: null,
+			loggedAt: s.loggedAt,
+			resolvedAt: s.resolvedAt,
+			hidden: true,
+			level: symptomStatus({
+				severity: s.severity ?? 0,
+				startedAt: clock.met(s.startedAt ?? s.loggedAt),
+				affectsWork: s.affectsWork ?? false,
+				...s.resolvedAt && { resolvedAt: clock.met(s.resolvedAt) }
+			}, nowMet)
+		}),
+		reports: rows.reports.map((r) => canSee(viewer, r.astronautId) ? r : {
+			...r,
+			summary: {
+				items: r.summary.items,
+				actions: r.summary.actions
+			}
+		})
+	};
+}
+/**
+* Rebuild the session, save alert changes (only when one opens, changes level or closes), and return what the
+* screen needs. Takes the session as already loaded, so a write doesn't load everything again.
+*/
+async function stateOf(ctx, loaded, viewer) {
+	const { session, rows } = loaded;
 	const serverTime = ctx.now();
 	const rebuilt = rebuildSession(session, rows, serverTime);
 	const alerts = await persistAlerts(ctx, session, rows, rebuilt.engine, rebuilt.clock.wall);
 	const e = rebuilt.engine;
-	const viewerIsCmo = SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false;
 	const view = {
 		crew: e.getCrew(),
 		mission: e.getMission(),
 		astronauts: Object.fromEntries(SESSION_CREW.map((a) => {
-			const open = !viewer || viewer === a.id || viewerIsCmo;
+			const open = canSee(viewer, a.id);
 			const indicators = Object.fromEntries(Object.keys(INDICATORS).filter((k) => open || k !== "mood").map((k) => {
 				const ev = e.evaluateIndicator(a.id, k);
 				return [k, {
@@ -28793,10 +29038,10 @@ async function stateOf(ctx, sessionId, viewer) {
 		serverTime,
 		nowMet: rebuilt.nowMet,
 		session,
-		rows: {
+		rows: rowsFor({
 			...rows,
 			alerts
-		},
+		}, viewer, rebuilt.clock, rebuilt.nowMet),
 		view
 	};
 }
@@ -28819,21 +29064,28 @@ async function createSession(ctx, body) {
 	await ctx.store.updateSession(id, { lastSeenAt: ctx.now() });
 	return s;
 }
+/** The screen state. Creates the session if it doesn't exist yet, so opening the app is one request. */
 async function getState(ctx, query) {
 	const q = parse(StateQuery, query);
-	await ctx.store.updateSession(q.session, { lastSeenAt: ctx.now() }).catch(() => void 0);
-	return stateOf(ctx, q.session, q.astronaut);
-}
-async function getReadings(ctx, query) {
-	const q = parse(ReadingsQuery, query);
-	const { session, rows } = await load(ctx, q.session);
-	const { engine } = rebuildSession(session, rows, ctx.now());
-	return { readings: engine.getReadings(q.astronaut, q.indicator, q.window) };
+	let loaded = await ctx.store.getSessionWithRows(q.session);
+	if (!loaded) loaded = {
+		session: await ctx.store.ensureSession(q.session, ctx.now()),
+		rows: {
+			readings: [],
+			symptoms: [],
+			routine: [],
+			alerts: [],
+			actions: [],
+			reports: []
+		}
+	};
+	const [state] = await Promise.all([stateOf(ctx, loaded, q.astronaut), touch(ctx, loaded.session)]);
+	return state;
 }
 async function postReading(ctx, body) {
 	const b = parse(ReadingRequest, body);
-	if (b.indicator === "bp" && b.value2 === void 0) throw badRequest("value2: blood pressure needs the diastolic value");
-	await capped(ctx, "entered_readings", b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "entered_readings");
 	const row = await ctx.store.insertReading(b.session, {
 		astronautId: b.astronaut,
 		indicator: b.indicator,
@@ -28846,9 +29098,10 @@ async function postReading(ctx, body) {
 		note: b.note ?? null,
 		device: b.device,
 		taskId: b.taskId ?? null,
-		takenAt: ctx.now()
+		takenAt: actionTime(b.takenAt, ctx.now())
 	});
-	const state = await stateOf(ctx, b.session, b.astronaut);
+	loaded.rows.readings.push(row);
+	const state = await stateOf(ctx, loaded, b.viewer);
 	const ind = state.view.astronauts[b.astronaut];
 	return {
 		reading: row,
@@ -28859,23 +29112,26 @@ async function postReading(ctx, body) {
 }
 async function postSymptom(ctx, body) {
 	const b = parse(SymptomRequest, body);
-	await capped(ctx, "symptoms", b.session);
-	const { session } = await load(ctx, b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "symptoms");
+	const { session } = loaded;
 	const startedWall = new Date(Math.min(Date.parse(ctx.now()), Date.parse(sessionClock(session.createdAt).wall(b.startedAt)))).toISOString();
+	const row = await ctx.store.insertSymptom(b.session, {
+		astronautId: b.astronaut,
+		bodyPart: b.partId,
+		layer: b.layer,
+		symptom: b.kind,
+		severity: b.severity,
+		affectsWork: b.affectsWork,
+		note: b.note ?? null,
+		startedAt: startedWall,
+		loggedAt: actionTime(b.loggedAt, ctx.now()),
+		resolvedAt: null
+	});
+	loaded.rows.symptoms.push(row);
 	return {
-		symptom: await ctx.store.insertSymptom(b.session, {
-			astronautId: b.astronaut,
-			bodyPart: b.partId,
-			layer: b.layer,
-			symptom: b.kind,
-			severity: b.severity,
-			affectsWork: b.affectsWork,
-			note: b.note ?? null,
-			startedAt: startedWall,
-			loggedAt: ctx.now(),
-			resolvedAt: null
-		}),
-		state: await stateOf(ctx, b.session, b.astronaut)
+		symptom: row,
+		state: await stateOf(ctx, loaded, b.viewer)
 	};
 }
 /** `id` is the symptom's id as the app shows it ("sym-db-12") or the bare row number. */
@@ -28883,17 +29139,20 @@ async function resolveSymptom(ctx, id, body) {
 	const b = parse(ResolveSymptomRequest, body);
 	const rowId = Number(id.replace(/^sym-db-/, ""));
 	if (!Number.isInteger(rowId) || rowId <= 0) throw badRequest("id: not a symptom id");
-	await load(ctx, b.session);
-	if (!await ctx.store.resolveSymptom(b.session, rowId, ctx.now())) throw notFound("No open symptom with that id in this session.");
-	return { state: await stateOf(ctx, b.session) };
+	const loaded = await load(ctx, b.session);
+	const now = ctx.now();
+	if (!await ctx.store.resolveSymptom(b.session, rowId, now)) throw notFound("No open symptom with that id in this session.");
+	const sym = loaded.rows.symptoms.find((x) => x.id === rowId);
+	if (sym) sym.resolvedAt = now;
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 async function routineEvent(ctx, body, kind) {
 	const b = kind === "completed" ? parse(RoutineRequest, body) : parse(PostponeRequest, body);
-	await capped(ctx, "routine_events", b.session);
-	await load(ctx, b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "routine_events");
 	const now = ctx.now();
 	const minutes = "minutes" in b ? Number(b.minutes) : 0;
-	await ctx.store.insertRoutine(b.session, {
+	const row = await ctx.store.insertRoutine(b.session, {
 		astronautId: b.astronaut,
 		taskId: b.taskId,
 		day: now.slice(0, 10),
@@ -28901,14 +29160,18 @@ async function routineEvent(ctx, body, kind) {
 		at: now,
 		postponedUntil: kind === "postponed" ? new Date(Date.parse(now) + minutes * 6e4).toISOString() : null
 	});
-	return { state: await stateOf(ctx, b.session, b.astronaut) };
+	loaded.rows.routine.push(row);
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 var completeTask = (ctx, body) => routineEvent(ctx, body, "completed");
 var postponeTask = (ctx, body) => routineEvent(ctx, body, "postponed");
 /** The open alert with the app's id, and its stored row (saved first if it's new). */
-async function alertRow(ctx, sessionId, alertId) {
-	const state = await stateOf(ctx, sessionId);
-	const alert = Object.values(state.view.astronauts).flatMap((a) => a.alerts).find((a) => a.id === alertId);
+async function alertRow(ctx, loaded, alertId) {
+	const state = await stateOf(ctx, loaded);
+	loaded.rows.alerts = state.rows.alerts;
+	const all = Object.values(state.view.astronauts).flatMap((a) => a.alerts);
+	const prefix = /^([a-z]+)-([a-z0-9]+)-/.exec(alertId);
+	const alert = all.find((a) => a.id === alertId) ?? (prefix ? all.find((a) => a.astronautId === prefix[1] && a.indicator === prefix[2]) : void 0);
 	if (!alert) throw notFound("No open alert with that id in this session.");
 	const row = state.rows.alerts.find((r) => r.astronautId === alert.astronautId && r.indicator === alert.indicator && !r.resolvedAt);
 	if (!row) throw new Error("open alert has no stored row");
@@ -28916,41 +29179,49 @@ async function alertRow(ctx, sessionId, alertId) {
 }
 async function acknowledgeAlert(ctx, alertId, body) {
 	const b = parse(AcknowledgeRequest, body);
-	const row = await alertRow(ctx, b.session, alertId);
-	if (!row.acknowledgedAt) await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: ctx.now() });
-	return { state: await stateOf(ctx, b.session) };
+	const loaded = await load(ctx, b.session);
+	const row = await alertRow(ctx, loaded, alertId);
+	if (!row.acknowledgedAt) {
+		row.acknowledgedAt = ctx.now();
+		await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: row.acknowledgedAt });
+	}
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 async function logAlertAction(ctx, alertId, body) {
 	const b = parse(AlertActionRequest, body);
-	await capped(ctx, "alert_actions", b.session);
-	const row = await alertRow(ctx, b.session, alertId);
-	await ctx.store.insertAction(b.session, {
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "alert_actions");
+	const row = await alertRow(ctx, loaded, alertId);
+	loaded.rows.actions.push(await ctx.store.insertAction(b.session, {
 		alertEventId: row.id,
 		kind: b.kind,
 		note: b.note ?? null,
 		at: ctx.now()
-	});
-	return { state: await stateOf(ctx, b.session) };
+	}));
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 async function queueReport(ctx, body) {
 	const b = parse(ReportRequest, body);
-	await capped(ctx, "reports", b.session);
-	const { session } = await load(ctx, b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "reports");
+	const { session } = loaded;
 	const now = ctx.now();
+	const row = await ctx.store.insertReport(b.session, {
+		astronautId: b.astronaut,
+		urgency: b.urgency,
+		note: b.note,
+		summary: {
+			items: b.items,
+			actions: b.actions,
+			...b.symptoms && { symptoms: b.symptoms }
+		},
+		queuedAt: now,
+		sentAt: session.earthLinkUp ? now : null
+	});
+	loaded.rows.reports.push(row);
 	return {
-		report: await ctx.store.insertReport(b.session, {
-			astronautId: b.astronaut,
-			urgency: b.urgency,
-			note: b.note,
-			summary: {
-				items: b.items,
-				actions: b.actions,
-				...b.symptoms && { symptoms: b.symptoms }
-			},
-			queuedAt: now,
-			sentAt: session.earthLinkUp ? now : null
-		}),
-		state: await stateOf(ctx, b.session, b.astronaut)
+		report: row,
+		state: await stateOf(ctx, loaded, b.viewer)
 	};
 }
 async function demo(ctx, body) {
@@ -28959,24 +29230,25 @@ async function demo(ctx, body) {
 		await ctx.store.deleteSession(b.session);
 		return { reset: true };
 	}
-	const { session } = await load(ctx, b.session);
+	const session = await ctx.store.getSession(b.session);
+	if (!session) throw notFound("Unknown session. Open the app (GET /api/state) or POST /api/session first.");
 	const now = ctx.now();
-	if (b.scenario !== void 0) {
-		await ctx.store.clearScenarioRows(b.session);
-		await ctx.store.updateSession(b.session, {
-			scenario: b.scenario,
-			scenarioTarget: b.target ?? session.scenarioTarget,
-			scenarioStartedAt: now
-		});
-	}
-	if (b.earthLinkUp !== void 0) {
-		await ctx.store.updateSession(b.session, { earthLinkUp: b.earthLinkUp });
-		if (b.earthLinkUp) await ctx.store.sendQueuedReports(b.session, now);
-	}
-	if (b.sleepPeriod !== void 0) await ctx.store.updateSession(b.session, { sleepPeriod: b.sleepPeriod });
-	if (b.missionSetting !== void 0) await ctx.store.updateSession(b.session, { missionSetting: b.missionSetting });
-	if (b.astronaut !== void 0) await ctx.store.updateSession(b.session, { astronautId: b.astronaut });
-	return { state: await stateOf(ctx, b.session) };
+	const patch = {};
+	if (b.scenario !== void 0) Object.assign(patch, {
+		scenario: b.scenario,
+		scenarioTarget: b.target ?? session.scenarioTarget,
+		scenarioStartedAt: now
+	});
+	if (b.earthLinkUp !== void 0) patch.earthLinkUp = b.earthLinkUp;
+	if (b.sleepPeriod !== void 0) patch.sleepPeriod = b.sleepPeriod;
+	if (b.missionSetting !== void 0) patch.missionSetting = b.missionSetting;
+	if (b.astronaut !== void 0) patch.astronautId = b.astronaut;
+	await Promise.all([
+		b.scenario !== void 0 ? ctx.store.clearScenarioRows(b.session) : void 0,
+		Object.keys(patch).length ? ctx.store.updateSession(b.session, patch) : void 0,
+		b.earthLinkUp ? ctx.store.sendQueuedReports(b.session, now) : void 0
+	]);
+	return { state: await stateOf(ctx, await load(ctx, b.session), b.viewer) };
 }
 // apps/server/src/router.ts
 /** Request bodies larger than this are refused. */
@@ -28996,11 +29268,6 @@ var ROUTES = [
 		method: "GET",
 		pattern: /^state$/,
 		run: (ctx, _m, q) => getState(ctx, q)
-	},
-	{
-		method: "GET",
-		pattern: /^readings$/,
-		run: (ctx, _m, q) => getReadings(ctx, q)
 	},
 	{
 		method: "POST",

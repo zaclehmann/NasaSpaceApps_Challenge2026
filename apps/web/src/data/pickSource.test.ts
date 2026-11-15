@@ -30,7 +30,7 @@ describe("pickSource", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("uses the in-browser simulator when health fails", async () => {
+  it("uses the in-browser simulator when the server answers with an error", async () => {
     stubPage("");
     vi.stubGlobal("fetch", vi.fn(async () => json({ error: "nope" }, 500)));
     const { pickSource } = await import("./pickSource");
@@ -48,7 +48,7 @@ describe("pickSource", () => {
     expect(await pickSource(() => {})).toBe(mockSource);
   });
 
-  it("gives up on a health check that takes longer than 3 seconds", async () => {
+  it("starts local mode at 4 seconds when the server's state is slow", async () => {
     stubPage("");
     // A fetch that only ends when its abort signal fires.
     vi.stubGlobal(
@@ -58,10 +58,14 @@ describe("pickSource", () => {
     const { pickSource } = await import("./pickSource");
     const { mockSource } = await import("./mockSource");
     const t0 = Date.now();
-    expect(await pickSource(() => {})).toBe(mockSource);
+    const { connectionMode, connectionDroppedAt } = await import("./connection");
+    expect(await pickSource(() => {}, 4000)).toBe(mockSource);
     const took = Date.now() - t0;
-    expect(took).toBeGreaterThanOrEqual(2900);
-    expect(took).toBeLessThan(4500);
+    expect(took).toBeGreaterThanOrEqual(3900);
+    expect(took).toBeLessThan(5000);
+    expect(connectionMode()).toBe("offline");
+    // The toast is due: the app tells the user it switched.
+    expect(connectionDroppedAt()).not.toBeNull();
   });
 
   it("uses the server when health, session and state all answer", async () => {

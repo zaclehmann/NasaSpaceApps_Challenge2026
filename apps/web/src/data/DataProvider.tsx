@@ -27,6 +27,8 @@ export function DataProvider({ source: initial = mockSource, fallback, children 
   // Every load starts at "Who's checking in?". Only a demo link (?astronaut=) opens someone directly.
   const [astronautId, setId] = useState<string | null>(() => applyUrlParams(source));
   useEffect(() => source.subscribe(() => setVersion((v) => v + 1)), [source]);
+  // Server mode: the server sends private rows (symptoms, mood) only for the viewer, or the whole crew to the CMO.
+  useEffect(() => source.setViewer?.(astronautId), [source, astronautId]);
   const setAstronautId = useCallback((id: string | null) => setId(id), []);
   const value = useMemo(() => ({ source, version, astronautId, setAstronautId }), [source, version, astronautId, setAstronautId]);
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

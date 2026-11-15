@@ -4,7 +4,7 @@
 // in view. Anywhere else it opens as a sheet. Both use the same form.
 import { useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
-import { PART_BY_ID, formatClock, formatDelay, formatDuration, formatMet, missionDay, symptomStatus, type Symptom, type Urgency } from "@missionvitals/shared";
+import { PART_BY_ID, formatClock, formatDelay, formatDuration, formatMissionTime, missionDay, symptomStatus, type Symptom, type Urgency } from "@missionvitals/shared";
 import { useMission, useSource } from "../../data/DataProvider";
 import { byPriority, type HealthView } from "../../data/health";
 import { useSelection } from "../../state/selection";
@@ -85,7 +85,7 @@ function useReport(view: HealthView) {
           {view.astronaut.name}, {view.astronaut.role.toLowerCase()}
         </dd>
         <dt className="text-muted-foreground">Time</dt>
-        <dd>MET {formatMet(view.now)}</dd>
+        <dd>{formatMissionTime(view.now)}</dd>
       </dl>
 
       <Section title="Out of range">

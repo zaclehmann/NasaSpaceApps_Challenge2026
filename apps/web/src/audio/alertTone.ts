@@ -370,7 +370,7 @@ function ringWarning(key: string) {
   }, undefined, true);
 }
 
-/** Rings once for each unacknowledged Warning when it first appears. `keys` are the alert ids. */
+/** Rings once for each unacknowledged Warning when it first appears. `keys` come from warningKey (audio/alarmKey.ts). */
 export function useWarningTone(keys: string[]) {
   const signature = keys.join("|");
   const before = useRef<string[]>([]);

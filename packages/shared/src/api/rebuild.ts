@@ -96,7 +96,23 @@ export function rebuildSession(session: SessionInfoT, rows: SessionRowsT, nowWal
     steps.push({
       t: at(s.loggedAt),
       order: 3,
-      run: () => engine.addSymptom(s.astronautId, { partId: s.bodyPart, layer: s.layer, kind: s.symptom, severity: s.severity, startedAt: at(s.startedAt), affectsWork: s.affectsWork, ...(s.note !== null && { note: s.note }) }, symptomIdOf(s.id)),
+      run: () =>
+        engine.addSymptom(
+          s.astronautId,
+          s.hidden
+            ? // A crewmate's symptom without its details: only its status level counts.
+              { partId: "", layer: "organs", kind: "", severity: 0, startedAt: at(s.loggedAt), affectsWork: false, hidden: true, level: s.level ?? null }
+            : {
+                partId: s.bodyPart ?? "",
+                layer: s.layer ?? "organs",
+                kind: s.symptom ?? "",
+                severity: s.severity ?? 0,
+                startedAt: at(s.startedAt ?? s.loggedAt),
+                affectsWork: s.affectsWork ?? false,
+                ...(s.note !== null && { note: s.note }),
+              },
+          symptomIdOf(s.id),
+        ),
     });
     if (s.resolvedAt) steps.push({ t: at(s.resolvedAt), order: 4, run: () => engine.resolveSymptom(symptomIdOf(s.id)) });
   }

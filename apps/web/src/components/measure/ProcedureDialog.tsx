@@ -2,7 +2,7 @@
 // Guided measurement (ui.md 5.5): Prepare, Enter, Result. Written like a flight procedure.
 // The result step offers the next routine task that is due, so the morning checks run as one flow.
 import { useId, useState } from "react";
-import { GUIDANCE, INDICATORS, statusLine, whatToDoFor } from "@missionvitals/shared";
+import { ENTRY_RANGES, GUIDANCE, INDICATORS, statusLine, whatToDoFor } from "@missionvitals/shared";
 import { useSource } from "../../data/DataProvider";
 import type { HealthView } from "../../data/health";
 import { useUi, type ProcedureRequest } from "../../state/ui";
@@ -84,9 +84,9 @@ function Body({ request, view }: { request: ProcedureRequest; view: HealthView }
           {request.kind === "bp" && <BloodPressureForm formId={formId} onSave={save} />}
           {request.kind === "glucose" && <GlucoseForm formId={formId} onSave={save} />}
           {request.kind === "mood" && <MoodForm formId={formId} onSave={save} />}
-          {request.kind === "temp" && <SimpleValueForm formId={formId} label="Temperature" unit="°C" min={30} max={43} device="thermometer" onSave={save} />}
-          {request.kind === "sleep" && <SimpleValueForm formId={formId} label="Hours slept" unit="h" min={0} max={16} device="self" onSave={save} />}
-          {isExercise && <SimpleValueForm formId={formId} label="Exercise today, from the shirt" unit="min" min={0} max={300} device="shirt" onSave={save} />}
+          {request.kind === "temp" && <SimpleValueForm formId={formId} label="Temperature" range={ENTRY_RANGES.temp} device="thermometer" onSave={save} />}
+          {request.kind === "sleep" && <SimpleValueForm formId={formId} label="Hours slept" range={ENTRY_RANGES.sleep} device="self" onSave={save} />}
+          {isExercise && <SimpleValueForm formId={formId} label="Exercise today, from the shirt" range={ENTRY_RANGES.exercise} device="shirt" onSave={save} />}
         </>
       )}
       {step === 3 && (

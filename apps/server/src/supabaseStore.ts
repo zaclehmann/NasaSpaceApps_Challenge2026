@@ -20,6 +20,7 @@ const toSession = (r: Row): SessionInfoT => ({
   earthLinkUp: Boolean(r.earth_link_up),
   sleepPeriod: Boolean(r.sleep_period),
   missionSetting: r.mission_setting as SessionInfoT["missionSetting"],
+  lastSeenAt: r.last_seen_at ? String(r.last_seen_at) : undefined,
 });
 const toReading = (r: Row): ReadingRowT => ({
   id: Number(r.id),
@@ -136,25 +137,38 @@ export class SupabaseStore implements Store {
     for (const t of ["entered_readings", "symptoms", "routine_events", "alert_events"] as const) check(await this.db.from(t).delete().eq("session_id", id), `clear ${t}`);
   }
 
-  async loadRows(id: string): Promise<SessionRowsT> {
-    const [readings, symptoms, routine, alerts, reports] = await Promise.all([
+  /** Six queries in parallel: one round trip to the database. Alert actions come through their alert's session. */
+  private rowQueries(id: string) {
+    return [
       this.db.from("entered_readings").select("*").eq("session_id", id).order("taken_at"),
       this.db.from("symptoms").select("*").eq("session_id", id).order("logged_at"),
       this.db.from("routine_events").select("*").eq("session_id", id).order("at"),
       this.db.from("alert_events").select("*").eq("session_id", id).order("opened_at"),
+      this.db.from("alert_actions").select("id, alert_event_id, kind, note, at, alert_events!inner(session_id)").eq("alert_events.session_id", id).order("at"),
       this.db.from("reports").select("*").eq("session_id", id).order("queued_at"),
-    ]);
-    const alertRows = (check(alerts, "load alerts") ?? []).map(toAlert);
-    const ids = alertRows.map((a) => a.id);
-    const actions = ids.length ? check(await this.db.from("alert_actions").select("*").in("alert_event_id", ids).order("at"), "load actions") : [];
+    ] as const;
+  }
+
+  private toRows(res: { data: unknown; error: { message: string } | null }[]): SessionRowsT {
+    const [readings, symptoms, routine, alerts, actions, reports] = res.map((r, i) => (check(r, `load rows ${i}`) as Row[] | null) ?? []);
     return {
-      readings: (check(readings, "load readings") ?? []).map(toReading),
-      symptoms: (check(symptoms, "load symptoms") ?? []).map(toSymptom),
-      routine: (check(routine, "load routine") ?? []).map(toRoutine),
-      alerts: alertRows,
-      actions: (actions ?? []).map(toAction),
-      reports: (check(reports, "load reports") ?? []).map(toReport),
+      readings: readings.map(toReading),
+      symptoms: symptoms.map(toSymptom),
+      routine: routine.map(toRoutine),
+      alerts: alerts.map(toAlert),
+      actions: actions.map(toAction),
+      reports: reports.map(toReport),
     };
+  }
+
+  async loadRows(id: string): Promise<SessionRowsT> {
+    return this.toRows(await Promise.all(this.rowQueries(id)));
+  }
+
+  async getSessionWithRows(id: string) {
+    const [session, ...rows] = await Promise.all([this.db.from("sessions").select("*").eq("id", id).maybeSingle(), ...this.rowQueries(id)]);
+    const s = check(session, "get session");
+    return s ? { session: toSession(s), rows: this.toRows(rows) } : null;
   }
 
   async count(table: Table, sessionId: string) {
@@ -213,11 +227,8 @@ export class SupabaseStore implements Store {
 
   async insertAlert(sessionId: string, r: Omit<AlertRowT, "id">) {
     const row = { session_id: sessionId, astronaut_id: r.astronautId, indicator: r.indicator, severity: r.severity, opened_at: r.openedAt, acknowledged_at: r.acknowledgedAt, resolved_at: r.resolvedAt };
-    check(await this.db.from("alert_events").upsert(row, { onConflict: "session_id,astronaut_id,indicator,opened_at", ignoreDuplicates: true }), "insert alert");
-    const data = check(
-      await this.db.from("alert_events").select("*").eq("session_id", sessionId).eq("astronaut_id", r.astronautId).eq("indicator", r.indicator).eq("opened_at", r.openedAt).single(),
-      "read alert",
-    );
+    // One query: insert, or on the same opening return the existing row.
+    const data = check(await this.db.from("alert_events").upsert(row, { onConflict: "session_id,astronaut_id,indicator,opened_at" }).select().single(), "insert alert");
     return toAlert(data);
   }
 
