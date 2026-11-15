@@ -5,5 +5,6 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: { port: 5173 },
+  // /api goes to the local API server (npm run dev:api). If it isn't running, the app falls back to local mode.
+  server: { port: 5173, proxy: { "/api": { target: "http://localhost:3001", changeOrigin: false } } },
 });
