@@ -3,7 +3,8 @@ import { useState } from "react";
 import type { GlucoseTiming } from "@missionvitals/shared";
 import { NumericInput } from "../ui/NumericInput";
 import { Scale } from "../ui/Scale";
-import { rangeError, type NewReading } from "./BloodPressureForm";
+import { ENTRY_RANGES, fieldError, type EntryRange } from "@missionvitals/shared";
+import type { NewReading } from "./BloodPressureForm";
 
 const TIMINGS: GlucoseTiming[] = ["fasting", "before-meal", "after-meal"];
 const TIMING_LABELS = ["Fasting", "Before a meal", "After a meal"] as const;
@@ -19,7 +20,7 @@ export function GlucoseForm({ formId, onSave }: { formId: string; onSave: (r: Ne
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        const err = rangeError("Blood glucose", value, 20, 600, "mg/dL");
+        const err = fieldError(ENTRY_RANGES.glucose, value);
         setError(err);
         if (err) return;
         onSave({ value: Number(value), timing: TIMINGS[timing - 1], device: "glucometer" });
@@ -32,7 +33,9 @@ export function GlucoseForm({ formId, onSave }: { formId: string; onSave: (r: Ne
   );
 }
 
-export function SimpleValueForm({ formId, label, unit, min, max, device, onSave }: { formId: string; label: string; unit: string; min: number; max: number; device: NewReading["device"]; onSave: (r: NewReading) => void }) {
+/** One number with its shared entry range (entryRanges.ts); `label` is the field's own wording. */
+export function SimpleValueForm({ formId, label, range, device, onSave }: { formId: string; label: string; range: EntryRange; device: NewReading["device"]; onSave: (r: NewReading) => void }) {
+  const unit = range.unit;
   const [value, setValue] = useState("");
   const [error, setError] = useState<string>();
   return (
@@ -41,7 +44,7 @@ export function SimpleValueForm({ formId, label, unit, min, max, device, onSave 
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        const err = rangeError(label, value, min, max, unit);
+        const err = fieldError(range, value);
         setError(err);
         if (err) return;
         onSave({ value: Number(value), device });

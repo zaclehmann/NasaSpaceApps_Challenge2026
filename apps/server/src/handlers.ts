@@ -192,7 +192,6 @@ export async function getReadings(ctx: Ctx, query: unknown) {
 
 export async function postReading(ctx: Ctx, body: unknown) {
   const b = parse(ReadingRequest, body);
-  if (b.indicator === "bp" && b.value2 === undefined) throw badRequest("value2: blood pressure needs the diastolic value");
   const loaded = await load(ctx, b.session);
   capped(loaded, "entered_readings");
   const row = await ctx.store.insertReading(b.session, {

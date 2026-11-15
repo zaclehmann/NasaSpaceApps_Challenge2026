@@ -12,3 +12,4 @@ export * from "./symptoms";
 export * from "./radiation";
 export * from "./sim";
 export * from "./api";
+export * from "./entryRanges";

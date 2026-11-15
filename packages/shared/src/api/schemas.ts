@@ -3,6 +3,7 @@
 // body and query is checked with these schemas; stored rows travel in the /state response in the same shape.
 // Times on the wire are ISO wall-clock strings; both sides turn them into mission time with the session clock.
 import { z } from "zod";
+import { readingRangeError } from "../entryRanges";
 
 export const SessionId = z.string().uuid({ message: "session must be a UUID" });
 export const AstronautId = z.enum(["hana", "mira", "tomas"]);
@@ -42,7 +43,12 @@ export const ReadingRequest = z
     /** When it was taken (wall clock, from the session clock). The server keeps it within the last 10 minutes. */
     takenAt: Iso.optional(),
   })
-  .strict();
+  .strict()
+  // The same entry ranges and words as the forms (entryRanges.ts): "value: Systolic must be between 60 and 250 mmHg".
+  .superRefine((r, ctx) => {
+    const e = readingRangeError(r.indicator, r);
+    if (e) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [e.field], message: e.message });
+  });
 
 export const SymptomRequest = z
   .object({

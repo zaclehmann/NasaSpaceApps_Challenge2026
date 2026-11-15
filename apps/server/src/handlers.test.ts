@@ -157,4 +157,20 @@ describe("API handlers", () => {
     await h.acknowledgeAlert(ctx, id, { session: S1 });
     expect(store.alerts.find((a) => a.indicator === "bp")?.acknowledgedAt).toBeTruthy();
   });
+
+  it("refuses impossible values with the form's words and range", async () => {
+    const { ctx } = setup();
+    await h.createSession(ctx, { id: S1 });
+    const post = async (body: Record<string, unknown>) => {
+      const r = await route(ctx, "POST", "/api/readings", {}, JSON.stringify({ session: S1, astronaut: "hana", ...body }));
+      return { status: r.status, error: (r.body as { error?: string }).error };
+    };
+    expect(await post({ indicator: "bp", value: 99999, value2: -50, device: "cuff" })).toEqual({ status: 400, error: "value: Systolic must be between 60 and 250 mmHg" });
+    expect(await post({ indicator: "bp", value: 120, value2: -50, device: "cuff" })).toEqual({ status: 400, error: "value2: Diastolic must be between 30 and 150 mmHg" });
+    expect(await post({ indicator: "bp", value: 120, value2: 130, device: "cuff" })).toEqual({ status: 400, error: "value2: Diastolic must be lower than systolic" });
+    expect(await post({ indicator: "temp", value: 1e308, device: "thermometer" })).toEqual({ status: 400, error: "value: Temperature must be between 30 and 43 °C" });
+    expect(await post({ indicator: "glucose", value: 5, device: "glucometer" })).toEqual({ status: 400, error: "value: Blood glucose must be between 20 and 600 mg/dL" });
+    expect(await post({ indicator: "mood", value: 2.5, device: "self" })).toEqual({ status: 400, error: "value: Mood must be a whole number from 1 to 5" });
+    expect((await post({ indicator: "temp", value: 43, device: "thermometer" })).status).toBe(200);
+  });
 });

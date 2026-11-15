@@ -28311,6 +28311,101 @@ ZodOptional.create;
 ZodNullable.create;
 ZodEffects.createWithPreprocess;
 ZodPipeline.create;
+// packages/shared/src/entryRanges.ts
+var ENTRY_RANGES = {
+	systolic: {
+		label: "Systolic",
+		min: 60,
+		max: 250,
+		unit: "mmHg"
+	},
+	diastolic: {
+		label: "Diastolic",
+		min: 30,
+		max: 150,
+		unit: "mmHg"
+	},
+	pulse: {
+		label: "Pulse",
+		min: 30,
+		max: 220,
+		unit: "bpm"
+	},
+	temp: {
+		label: "Temperature",
+		min: 30,
+		max: 43,
+		unit: "°C"
+	},
+	glucose: {
+		label: "Blood glucose",
+		min: 20,
+		max: 600,
+		unit: "mg/dL"
+	},
+	sleep: {
+		label: "Hours slept",
+		min: 0,
+		max: 16,
+		unit: "h"
+	},
+	exercise: {
+		label: "Exercise today",
+		min: 0,
+		max: 300,
+		unit: "min"
+	},
+	mood: {
+		label: "Mood",
+		min: 1,
+		max: 5,
+		unit: "",
+		integer: true
+	},
+	stress: {
+		label: "Stress",
+		min: 1,
+		max: 5,
+		unit: "",
+		integer: true
+	}
+};
+/** "Systolic must be between 60 and 250 mmHg"; "Mood must be a whole number from 1 to 5". */
+function rangeMessage(r) {
+	if (r.integer) return `${r.label} must be a whole number from ${r.min} to ${r.max}`;
+	return `${r.label} must be between ${r.min} and ${r.max}${r.unit ? ` ${r.unit}` : ""}`;
+}
+/** Undefined when `value` is inside the range, otherwise the message. */
+function outOfRange(r, value) {
+	if (!Number.isFinite(value) || value < r.min || value > r.max || r.integer && !Number.isInteger(value)) return rangeMessage(r);
+}
+/** The field and message for the first value of an entered reading outside its range, or undefined. */
+function readingRangeError(indicator, r) {
+	const check = (field, key, v) => {
+		const message = v === void 0 ? void 0 : outOfRange(ENTRY_RANGES[key], v);
+		return message ? {
+			field,
+			message
+		} : void 0;
+	};
+	switch (indicator) {
+		case "bp":
+			if (r.value2 === void 0) return {
+				field: "value2",
+				message: "Enter diastolic in mmHg"
+			};
+			return check("value", "systolic", r.value) || check("value2", "diastolic", r.value2) || (r.value2 >= r.value ? {
+				field: "value2",
+				message: "Diastolic must be lower than systolic"
+			} : void 0) || check("pulse", "pulse", r.pulse);
+		case "temp":
+		case "glucose":
+		case "sleep":
+		case "exercise": return check("value", indicator, r.value);
+		case "mood": return check("value", "mood", r.value) || check("stress", "stress", r.stress);
+		default: return;
+	}
+}
 // packages/shared/src/api/schemas.ts
 var SessionId = stringType().uuid({ message: "session must be a UUID" });
 var AstronautId = enumType([
@@ -28417,7 +28512,14 @@ var ReadingRequest = objectType({
 	taskId: ShortId.optional(),
 	/** When it was taken (wall clock, from the session clock). The server keeps it within the last 10 minutes. */
 	takenAt: Iso.optional()
-}).strict();
+}).strict().superRefine((r, ctx) => {
+	const e = readingRangeError(r.indicator, r);
+	if (e) ctx.addIssue({
+		code: ZodIssueCode.custom,
+		path: [e.field],
+		message: e.message
+	});
+});
 var SymptomRequest = objectType({
 	session: SessionId,
 	astronaut: AstronautId,
@@ -28890,7 +28992,6 @@ async function getReadings(ctx, query) {
 }
 async function postReading(ctx, body) {
 	const b = parse(ReadingRequest, body);
-	if (b.indicator === "bp" && b.value2 === void 0) throw badRequest("value2: blood pressure needs the diastolic value");
 	const loaded = await load(ctx, b.session);
 	capped(loaded, "entered_readings");
 	const row = await ctx.store.insertReading(b.session, {
