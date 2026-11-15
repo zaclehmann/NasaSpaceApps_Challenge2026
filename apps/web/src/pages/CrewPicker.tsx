@@ -12,7 +12,7 @@ import { useDueAlarm } from "../audio/alertTone";
 import { BadgeIcon, StatusBadge } from "../components/status/StatusBadge";
 import { useCrewHealth, useData, useMission } from "../data/DataProvider";
 import type { HealthView } from "../data/health";
-import { acted, dueKey, mark, opened, usePulse } from "../state/attention";
+import { dueKey } from "../state/attention";
 
 /** "12 min", "1 h 24 min", "3 h". */
 function span(sec: number): string {
@@ -67,15 +67,14 @@ function summary(crew: HealthView[]): string {
 
 const COLS = "md:grid-cols-[minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(200px,1.4fr)_minmax(110px,0.8fr)]";
 
-/** One crew row. While its check is due it keeps the tint and red bar, and blinks 5 times or until opened. */
 /**
- * One crew row. A due check gives it a red bar and a red outline that flashes 5 times or until opened; the
- * background stays put so the text keeps its contrast. An astronaut at Warning also gets a static red tint.
+ * One crew row. A due check gives it a red bar and a red outline that keeps flashing until the check is done or
+ * postponed (rowKey becomes null then); the background stays put so the text keeps its contrast. An astronaut at
+ * Warning also gets a static red tint. Reduced motion: the bar stays, no flash.
  */
 function PickerRow({ rowKey, className, children, ...rest }: { rowKey: string | null } & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { pulse, onAnimationEnd } = usePulse("row", rowKey, rowKey ? [opened(rowKey), acted(rowKey)] : []);
   return (
-    <button key={rowKey ?? "calm"} type="button" data-row className={clsx(className, pulse && "anim-row-alert")} onAnimationEnd={onAnimationEnd} {...rest}>
+    <button key={rowKey ?? "calm"} type="button" data-row className={clsx(className, rowKey && "anim-row-alert")} {...rest}>
       {children}
     </button>
   );
@@ -159,7 +158,6 @@ export default function CrewPicker() {
                   <PickerRow
                     rowKey={key}
                     onClick={() => {
-                      if (key) mark(opened(key));
                       hideTip();
                       setAstronautId(v.astronaut.id);
                     }}

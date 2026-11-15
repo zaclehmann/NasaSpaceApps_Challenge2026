@@ -75,7 +75,7 @@
 }
 .anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out 5; }
 /* Crew picker rows (ui.md 5.7). A routine check due now: a red left bar (.row-due) and a red outline that
-   flashes 5 times or until the row is opened (.anim-row-alert). Only the outline moves; the row's background never
+   keeps flashing until the check is done or postponed (.anim-row-alert). Only the outline moves; the row's background never
    changes, so its status words keep their contrast (WCAG AA). An astronaut at Warning: a static red tint and bar
    (.row-warning), with the same red flash when a check is also due. Reduced motion keeps the bar and tint, no flash. */
 @keyframes mv-row-alert {
@@ -84,7 +84,7 @@
 }
 .row-due { box-shadow: inset 3px 0 0 var(--warning); }
 .row-warning { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); }
-.anim-row-alert { animation: mv-row-alert 1s ease-in-out 5; }
+.anim-row-alert { animation: mv-row-alert 1s ease-in-out infinite; }
 
 
 @media (prefers-reduced-motion: reduce) {
