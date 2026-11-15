@@ -70,6 +70,15 @@ The Space Apps rules ask for AI-generated work to be acknowledged.
 - **Zac's own:** the concept, the scope, and the design decisions in `docs/ui.md`.
 - Text still to be written by Zac is marked `TODO(Zac)` in the Learn and Methodology pages.
 
+## NASA data used
+
+| Source | What it's used for |
+| --- | --- |
+| [NASA HRP, 5 Hazards of Human Spaceflight](https://www.nasa.gov/hrp/hazards/) | Groups the indicators by hazard on the Learn page, and the "Why it changes in space" text |
+| [NASA HRP, Risks of Human Spaceflight](https://www.nasa.gov/hrp/risks/) | The named NASA risk shown for each indicator |
+| [NASA alert design guidance, Commercial LEO Destinations HSI workshop](https://ntrs.nasa.gov/api/citations/20240003565/downloads/CLD%20HSI%20Workshop%20Alerts.pdf) | Alert levels, acknowledgement and silencing an alarm by acting on it |
+| [NASA DONKI space weather database](https://kauai.ccmc.gsfc.nasa.gov/DONKI/) (CCMC), May 2024 solar storm | The solar storm scenario replays the real flares, CMEs and GOES particle arrivals (>10 MeV on 10 May, >100 MeV on 11 May 2024) with their real timing. The habitat dose rate is simulated, since DONKI records events, not dose. Data in `packages/shared/data/donki-2024-05.json`, downloaded once with `npm run fetch:donki`. |
+
 ## Sources
 
 - NASA HRP, 5 Hazards of Human Spaceflight: https://www.nasa.gov/hrp/hazards/
