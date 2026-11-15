@@ -8,24 +8,18 @@ import type {
   ChartWindow,
   IndicatorKey,
   Mission,
+  ReplayedEvent,
   MissionSettingId,
+  NewReport,
   NewSymptom,
   Reading,
   Report,
-  ReportItem,
   RoutineSummary,
   ScenarioId,
   Symptom,
-  Urgency,
 } from "@missionvitals/shared";
 
-export interface NewReport {
-  urgency: Urgency;
-  note: string;
-  items: ReportItem[];
-  actions: string[];
-  symptoms?: string[];
-}
+export type { NewReport } from "@missionvitals/shared";
 
 export interface DataSource {
   getCrew(): Astronaut[];
@@ -53,5 +47,7 @@ export interface DataSource {
   setScenario(scenario: ScenarioId, astronautId: string): void;
   setEarthLink(up: boolean): void;
   setMissionSetting(setting: MissionSettingId): void;
+  /** Solar storm scenario: the NASA DONKI events placed on the mission clock. Empty in other scenarios. */
+  getSolarEvents(): ReplayedEvent[];
   setSleepPeriod(on: boolean): void;
 }

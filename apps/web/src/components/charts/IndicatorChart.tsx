@@ -19,6 +19,7 @@ import {
   type ChartWindow,
   type IndicatorKey,
   type Reading,
+  type ReplayedEvent,
   type Status,
 } from "@missionvitals/shared";
 import { useData } from "../../data/DataProvider";
@@ -37,6 +38,66 @@ interface Point {
 
 const WINDOW_WORDS: Record<ChartWindow, string> = { "1h": "the last hour", "24h": "the last 24 hours", "7d": "the last 7 days", "14d": "the last 14 days", "30d": "the last 30 days" };
 const TEXT = { fill: "var(--subtle-foreground)", fontSize: 12 };
+
+/** Windows that show the solar storm's NASA DONKI event markers (ui.md 7): long enough to see the sequence. */
+const EVENT_WINDOWS: ChartWindow[] = ["24h", "7d", "14d"];
+/** Label priority: the particle arrivals first, then flares, then CMEs. */
+const EVENT_RANK = { sep: 0, flare: 1, cme: 2 } as const;
+
+/** Event label text: short name and MET time. */
+const eventText = (e: ReplayedEvent) => `${e.short} ${formatClock(e.met)}`;
+const EVENT_ROWS = 3;
+
+/**
+ * Where each event marker's label goes: right of its line (left only when it would run off the right edge),
+ * on the first of three rows where it overlaps no label already placed. Every marker is drawn; a label that
+ * fits on no row is dropped. Widths are estimated against a narrow plot (the side panel), so the check is safe
+ * on wider charts too. Particle arrivals are placed first, then flares, then CMEs.
+ */
+function placeEventLabels(events: ReplayedEvent[], start: number, end: number): Map<string, { left: boolean; row: number }> {
+  const PLOT_PX = 300;
+  const CHAR_PX = 6.2;
+  const span = end - start;
+  const placed: { row: number; a: number; b: number }[] = [];
+  const out = new Map<string, { left: boolean; row: number }>();
+  for (const e of [...events].sort((a, b) => EVENT_RANK[a.kind] - EVENT_RANK[b.kind] || b.met - a.met)) {
+    const x = (e.met - start) / span;
+    const w = (eventText(e).length * CHAR_PX + 8) / PLOT_PX;
+    const left = x + w > 1;
+    const [a, b] = left ? [x - w, x] : [x, x + w];
+    if (a < 0) continue;
+    for (let row = 0; row < EVENT_ROWS; row++) {
+      if (placed.some((p) => p.row === row && a < p.b && b > p.a)) continue;
+      placed.push({ row, a, b });
+      out.set(e.id, { left, row });
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * A marker's label, inside the plot, below the alert marker's label. It sits right of the line, or left of it
+ * near the right edge so it is never cut off.
+ */
+function EventLabel({ viewBox, text, row, left }: { viewBox?: { x: number; y: number }; text: string; row: number; left: boolean }) {
+  if (!viewBox) return null;
+  return (
+    <text
+      x={viewBox.x + (left ? -4 : 4)}
+      y={viewBox.y + 12 + row * 14}
+      textAnchor={left ? "end" : "start"}
+      fill="var(--muted-foreground)"
+      fontSize={11}
+      // A halo in the card colour keeps the text readable where another marker line crosses it.
+      stroke="var(--card)"
+      strokeWidth={3}
+      paintOrder="stroke"
+    >
+      {text}
+    </text>
+  );
+}
 
 function timeLabel(t: number, window: ChartWindow): string {
   return window === "1h" || window === "24h" ? formatClock(t) : `Day ${missionDay(t)}`;
@@ -143,6 +204,7 @@ interface Props {
 export function IndicatorChart({ astronautId, indicator, window: win, alert, compact = false, height = 180 }: Props) {
   const { source, version } = useData();
   const [table, setTable] = useState(false);
+  const solarEvents = indicator === "radiation" ? source.getSolarEvents() : [];
   const def = INDICATORS[indicator];
   const entered = def.source === "entered";
 
@@ -194,6 +256,10 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
   const bandLow = def.low ?? domain[0];
   const bandHigh = def.high ?? domain[1];
   const showAlert = alert && alert.firedAt > start && !compact;
+  const markers = !compact && EVENT_WINDOWS.includes(win) ? solarEvents.filter((e) => e.met >= start && e.met <= now) : [];
+  const labelled = placeEventLabels(markers, start, now);
+  // Screen readers get every marker, in order, with its real NASA label.
+  const fullSummary = markers.length ? `${summary} Marked, from NASA DONKI records: ${markers.map((e) => `${e.label} at ${formatClock(e.met)} MET`).join("; ")}.` : summary;
   const fmtY = (v: number) => (indicator === "temp" || (ticks.length > 1 && ticks[1] - ticks[0] < 1) ? v.toFixed(1) : String(v));
 
   const tableRows = useMemo(() => {
@@ -253,6 +319,15 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
         )}
         {gaps.map(([a, b]) => (
           <ReferenceArea key={a} x1={Math.max(a, start)} x2={b} fill="url(#mv-hatch)" fillOpacity={1} stroke="none" label={compact ? undefined : { value: "No data", position: "insideTop", ...TEXT }} />
+        ))}
+        {markers.map((e) => (
+          <ReferenceLine
+            key={e.id}
+            x={e.met}
+            stroke="var(--border-strong)"
+            strokeWidth={1}
+            label={labelled.has(e.id) ? <EventLabel text={eventText(e)} row={labelled.get(e.id)!.row} left={labelled.get(e.id)!.left} /> : undefined}
+          />
         ))}
         {showAlert && alert && (
           <ReferenceLine
@@ -325,7 +400,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
 
   if (compact) {
     return (
-      <div role="img" aria-label={summary} className="w-full">
+      <div role="img" aria-label={fullSummary} className="w-full">
         {chart}
       </div>
     );
@@ -344,7 +419,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
       {table ? (
         <div className="max-h-[260px] overflow-auto">
           <table className="w-full type-small">
-            <caption className="sr-only">{summary}</caption>
+            <caption className="sr-only">{fullSummary}</caption>
             <thead className="sticky top-0 bg-muted type-label text-muted-foreground">
               <tr>
                 <th scope="col" className="px-2 py-2 text-left font-medium">
@@ -380,7 +455,7 @@ export function IndicatorChart({ astronautId, indicator, window: win, alert, com
           </table>
         </div>
       ) : (
-        <div role="img" aria-label={summary}>
+        <div role="img" aria-label={fullSummary}>
           {chart}
         </div>
       )}

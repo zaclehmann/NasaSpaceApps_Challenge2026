@@ -1,8 +1,9 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Methodology (ui.md 5.10): how the prototype works and where its limits are. Geist Mono is allowed here for raw values.
 import type { ReactNode } from "react";
-import { INDICATORS, INDICATOR_KEYS, SCENARIOS, SOURCES, STATUSES } from "@missionvitals/shared";
+import { DONKI_SOURCE, INDICATORS, INDICATOR_KEYS, SCENARIOS, SOLAR_SEQUENCE, SOURCES, STATUSES } from "@missionvitals/shared";
 import { AppShell } from "../components/layout/AppShell";
+import { utcText } from "../components/panel/SolarStormNote";
 import { StatusBadge } from "../components/status/StatusBadge";
 import { Todo } from "../components/ui/Todo";
 
@@ -20,6 +21,14 @@ const PALETTE = [
   { palette: "Chosen", mode: "Light", values: "#15803D #0EA5E9 #F59E0B #DC2626", cvd: "Pass: worst ΔE 8.6", floor: "Pass: worst ΔE 24.1", result: "All checks pass" },
   { palette: "Chosen", mode: "Dark", values: "#16A34A #38BDF8 #FBBF24 #F87171", cvd: "Warn: ΔE 7.4", floor: "Pass: ΔE 21.2", result: "Pass with shape and word" },
 ];
+
+/** The replayed DONKI events as one sentence, from the data: "X3.9 flare (10 May 2024, 06:27 UTC), …". */
+function stormSentence(): string {
+  // Lower-case ordinary words mid-sentence, but keep flare classes like "X3.9" as they are.
+  const lower = (t: string) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+  const parts = SOLAR_SEQUENCE.map((e) => `${lower(e.label.replace(" arrive (GOES)", " arrive at GOES"))} (${utcText(e.ms)})`);
+  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}.`;
+}
 
 function Content() {
   return (
@@ -41,6 +50,12 @@ function Content() {
         whenever the astronaut feels unwell. Exercise minutes come from the shirt's activity sensor and are confirmed by the astronaut.
       </P>
       <Todo>one paragraph on why these nine indicators were chosen for the challenge brief.</Todo>
+      <P>
+        The solar storm scenario uses real NASA data. It replays records from NASA's{" "}
+        <A href="https://ccmc.gsfc.nasa.gov/DONKI/">DONKI space weather database</A> (Community Coordinated Modeling Center) for the May 2024 solar storm: {stormSentence()} The flares, CMEs and particle
+        arrivals and the real gaps between them come from DONKI; the sequence is moved onto the mission clock so the &gt;100 MeV arrival lands 30 minutes before the demo's "now". The habitat dose rate is simulated,
+        because DONKI records events, not dose. The data was downloaded once ({DONKI_SOURCE.fetchedAt.slice(0, 10)}) and ships with the app, so nothing is fetched at runtime.
+      </P>
 
       <H2>Simulation</H2>
       <P>
@@ -58,6 +73,15 @@ function Content() {
       <P>
         The Mission setting in Demo controls (Mars transit, space station, lunar base, Mars rover) changes only the mission name and the simulated one-way Earth link delay: 6 min 48 s for Mars, about 1.3 s for the Moon
         and about 0.3 s for a station in low Earth orbit. Thresholds and data stay the same.
+      </P>
+
+      <H2>Onboard server and local mode</H2>
+      <P>
+        In server mode the app talks to a Node API (Vercel serverless functions) that stores everything the astronaut does, such as entered readings, symptoms, routine actions, alert acknowledgements and actions, and
+        reports, in a Postgres database (Supabase). Supabase stands in for Postgres on an onboard server; on a spacecraft the same database would run on board, not in the cloud. Live readings are simulated from a
+        seeded model shared by the server and the browser, so they don't need to be stored. Each browser gets its own demo session, so one person's actions never change another's screen. The server decides
+        statuses and alerts with the same rules the app shows. If the server doesn't answer within 3 seconds at load, or fails three times in a row, the app switches to local mode: the same simulator in the
+        browser, with "Onboard server: offline, local mode" in the header. Losing the onboard server and losing the Earth link are separate states, shown separately.
       </P>
 
       <H2>Status and alert rules</H2>
@@ -185,6 +209,11 @@ function Content() {
         {Object.values(SOURCES).map((s) => (
           <li key={s.url}>
             <A href={s.url}>{s.label}</A>
+          </li>
+        ))}
+        {DONKI_SOURCE.urls.map((u) => (
+          <li key={u}>
+            <A href={u}>NASA DONKI, {/\/get\/(\w+)\?/.exec(u)?.[1] ?? "records"} records, 8 to 14 May 2024</A>
           </li>
         ))}
         <li>

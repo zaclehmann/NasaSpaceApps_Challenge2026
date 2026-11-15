@@ -3,6 +3,7 @@
 import {
   INDICATORS,
   INDICATOR_KEYS,
+  lookbackHistory,
   PART_BY_ID,
   REGIONS,
   classify,
@@ -114,7 +115,8 @@ export function buildHealth(source: DataSource, astronaut: Astronaut): HealthVie
     const tasks = routine.entries.filter((e) => e.task.kind === key);
     // The task to start from this row: overdue first, then due, then the next one today.
     const openTask = tasks.find((e) => e.state.kind === "overdue") ?? tasks.find((e) => e.state.kind === "due") ?? tasks.find((e) => e.state.kind === "upcoming");
-    const ev = evaluate(key, readings, { now, routine: routineContext(routine.entries, key) });
+    const history = entered ? undefined : () => lookbackHistory((w) => source.getReadings(astronaut.id, key, w));
+    const ev = evaluate(key, readings, { now, routine: routineContext(routine.entries, key), history });
     const latest = ev.latest;
     const current = latest !== undefined && ev.status !== "nodata" && ev.status !== "due" && (!entered || latest.t >= startOfDay(now));
     // Exercise always shows the shirt's count for today; until it is confirmed it is a running total.

@@ -17,6 +17,24 @@ export interface StatusContext {
   /** Current MET in seconds. Defaults to the time of the latest reading. */
   now?: number;
   routine?: RoutineContext;
+  /**
+   * A longer, coarser series of readings (oldest first), fetched only when an out-of-range run reaches the start
+   * of `readings`. Used to find when the run began, up to OUT_OF_RANGE_LOOKBACK_SEC back.
+   */
+  history?: () => readonly Reading[];
+}
+
+/** How far back "out of range since" looks for the last in-range reading. */
+export const OUT_OF_RANGE_LOOKBACK_SEC = 48 * 3600;
+
+/**
+ * The series to pass as `history`: the last 24 hours at full chart detail, and the 7-day series before that,
+ * so "out of range since" can reach back 48 hours. `get` returns a chart window's readings, oldest first.
+ */
+export function lookbackHistory(get: (window: "24h" | "7d") => readonly Reading[]): readonly Reading[] {
+  const day = get("24h");
+  const start = day.length ? day[0].t : Infinity;
+  return [...get("7d").filter((r) => r.t < start), ...day];
 }
 
 export interface Evaluation {
@@ -230,17 +248,37 @@ function approaching(key: IndicatorKey, readings: readonly Reading[], now: numbe
   return undefined;
 }
 
-/** MET when the current unbroken out-of-range run on this side began. */
-function runStart(key: IndicatorKey, readings: readonly Reading[], side: Side | undefined): number {
+/**
+ * MET when the current unbroken out-of-range run on this side began: the reading after the last one in range.
+ * Walks back through `readings`, then, if the run reaches their start, through `history`, never further than
+ * OUT_OF_RANGE_LOOKBACK_SEC before `now`. For live sources a gap in the data (silent sensor) also ends the run;
+ * the allowed gap grows with the spacing of the coarser history.
+ */
+function runStart(key: IndicatorKey, readings: readonly Reading[], side: Side | undefined, now: number, history?: () => readonly Reading[]): number {
   const def = INDICATORS[key];
+  const live = def.source !== "entered";
+  const cap = now - OUT_OF_RANGE_LOOKBACK_SEC;
   const last = readings.length - 1;
   let since = readings[last].t;
-  if (def.source === "entered") return since;
   for (let i = last - 1; i >= 0; i--) {
-    if (readings[i + 1].t - readings[i].t > 3 * def.expectedIntervalSec) break;
+    if (readings[i].t < cap) return since;
+    if (live && readings[i + 1].t - readings[i].t > 3 * def.expectedIntervalSec) return since;
     const c = classify(key, readings, i);
-    if (c.level === "ok" || c.side !== side) break;
+    if (c.level === "ok" || c.side !== side) return since;
     since = readings[i].t;
+  }
+  // Still out of range at the start of the window: keep looking in the longer history.
+  if (!history) return since;
+  const h = history().filter((r) => r.t < readings[0].t && r.t >= cap);
+  const step = h.length > 1 ? (h[h.length - 1].t - h[0].t) / (h.length - 1) : 0;
+  const allowedGap = 3 * Math.max(def.expectedIntervalSec, step);
+  let prev = readings[0].t;
+  for (let j = h.length - 1; j >= 0; j--) {
+    if (live && prev - h[j].t > allowedGap) break;
+    const c = classify(key, h, j);
+    if (c.level === "ok" || c.side !== side) break;
+    since = h[j].t;
+    prev = h[j].t;
   }
   return since;
 }
@@ -282,7 +320,7 @@ export function evaluate(key: IndicatorKey, readings: readonly Reading[], ctx: S
       inclusive: c.inclusive,
       component: c.component,
       twoDays: c.twoDays,
-      since: runStart(key, readings, c.side),
+      since: runStart(key, readings, c.side, now, ctx.history),
       latest,
     };
   }

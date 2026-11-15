@@ -1,10 +1,11 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // React context and hooks over a DataSource. Components use these hooks, never the mock itself.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { SCENARIOS, type Astronaut, type Mission, type ScenarioId } from "@missionvitals/shared";
+import type { Astronaut, Mission } from "@missionvitals/shared";
 import type { DataSource } from "./DataSource";
 import { mockSource } from "./mockSource";
 import { buildHealth, type HealthView } from "./health";
+import { applyUrlParams } from "./urlParams";
 
 interface DataContextValue {
   source: DataSource;
@@ -15,18 +16,13 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null);
 
-/** Optional demo links: ?astronaut=hana&scenario=low-spo2 */
-function applyUrlParams(source: DataSource): string | null {
-  const p = new URLSearchParams(window.location.search);
-  const astronaut = p.get("astronaut");
-  const scenario = p.get("scenario") as ScenarioId | null;
-  const crew = source.getCrew();
-  const validAstronaut = astronaut && crew.some((c) => c.id === astronaut) ? astronaut : null;
-  if (scenario && SCENARIOS.some((s) => s.id === scenario)) source.setScenario(scenario, validAstronaut ?? source.getMission().scenarioTarget);
-  return validAstronaut;
-}
-
-export function DataProvider({ source = mockSource, children }: { source?: DataSource; children: ReactNode }) {
+/**
+ * `initial` is the source pickSource chose (the onboard server or the in-browser simulator). `fallback`, when it
+ * fires, swaps to the simulator for the rest of the visit: the server stopped answering.
+ */
+export function DataProvider({ source: initial = mockSource, fallback, children }: { source?: DataSource; fallback?: { subscribe: (cb: () => void) => void }; children: ReactNode }) {
+  const [source, setSource] = useState<DataSource>(initial);
+  useEffect(() => fallback?.subscribe(() => setSource(mockSource)), [fallback]);
   const [version, setVersion] = useState(0);
   // Every load starts at "Who's checking in?". Only a demo link (?astronaut=) opens someone directly.
   const [astronautId, setId] = useState<string | null>(() => applyUrlParams(source));

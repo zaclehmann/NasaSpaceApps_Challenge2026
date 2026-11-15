@@ -203,3 +203,12 @@ export interface Report {
   sentAt?: number;
   arrivesAt?: number;
 }
+
+/** A report the astronaut queues for the flight surgeon; the data source adds id, time and delivery state. */
+export interface NewReport {
+  urgency: Urgency;
+  note: string;
+  items: ReportItem[];
+  actions: string[];
+  symptoms?: string[];
+}

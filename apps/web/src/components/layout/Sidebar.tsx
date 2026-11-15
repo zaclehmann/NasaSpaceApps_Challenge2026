@@ -11,6 +11,7 @@ import { BookOpen, ClipboardList, FlaskConical, HeartPulse, ListChecks, Menu, Mo
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { formatDelay, formatMet, missionDay, type Status } from "@missionvitals/shared";
+import { useConnection } from "../../data/connection";
 import { useAstronaut, useData, useMission } from "../../data/DataProvider";
 import { useUi } from "../../state/ui";
 import { useClickFeedback } from "../../audio/clickFeedback";
@@ -111,6 +112,19 @@ function ThemeSwitch() {
         );
       })}
     </div>
+  );
+}
+
+/** The onboard server's state in words, with a Watch badge when the app fell back to local mode. */
+function OnboardServerFact() {
+  const { mode } = useConnection();
+  if (mode === "server") return <>Connected</>;
+  if (mode === "local") return <>Local mode</>;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-watch-text">
+      <BadgeIcon status="watch" size={12} />
+      Offline, local mode
+    </span>
   );
 }
 
@@ -254,6 +268,9 @@ export function Sidebar() {
                 <Fact label="Vehicle">{mission.name}</Fact>
                 <Fact label="Mission day">{missionDay(mission.met)}</Fact>
                 <Fact label="Mission clock">MET {formatMet(mission.met)}</Fact>
+                <Fact label="Onboard server">
+                  <OnboardServerFact />
+                </Fact>
                 <Fact label="Earth link">
                   {mission.earthLink.up ? (
                     `Up, ${formatDelay(mission.earthLink.delaySec)} one way`

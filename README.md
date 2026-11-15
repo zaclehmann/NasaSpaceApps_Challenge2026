@@ -25,6 +25,22 @@ Other commands:
 | `npm run build` | Production build of the web app |
 | `npm run typecheck` | Type-check both packages |
 | `npm test` | Unit tests for the status function |
+| `npm run check:supabase` | Check that the Supabase project in `.env.local` can be reached |
+| `npm run dev:api` | Local API on port 3001 (needs `.env.local`). With `npm run dev` alongside, the app uses it (server mode) |
+| `npm run dev:full` | Web and API together with `vercel dev` (needs the Vercel CLI, logged in and linked) |
+| `npm run smoke:api [url]` | Smoke test of the API: health, session, a reading, state (default `http://localhost:3001`, or a deployed URL) |
+| `npm run build:api` | Bundle the API into `api/_server.mjs` for the Vercel function (part of `npm run build`) |
+| `http://localhost:5173/?local=1` | Force local mode: the in-browser simulator, no server (for recording the video) |
+
+## Configuration
+
+The web app runs without any configuration. The server work (in progress) needs a Supabase project:
+
+1. Copy `.env.example` to `.env.local`. It is git-ignored.
+2. The URL is already filled in. Add `SUPABASE_SERVICE_ROLE_KEY` from Supabase › Project Settings › API in project `NASA_Space_Apps` (the service_role key, shown on newer projects as a secret key starting `sb_secret_`).
+3. Run `npm run check:supabase`. It should print "Supabase reachable".
+
+The service role key is server-only. It must never go into `apps/web`, a `VITE_` variable, a commit, a screenshot or a chat.
 
 ## Demo
 
@@ -58,6 +74,15 @@ The Space Apps rules ask for AI-generated work to be acknowledged.
 - **Drafted with AI and checked against the listed sources:** the guidance text in `packages/shared/src/guidance.ts`.
 - **Zac's own:** the concept, the scope, and the design decisions in `docs/ui.md`.
 - Text still to be written by Zac is marked `TODO(Zac)` in the Learn and Methodology pages.
+
+## NASA data used
+
+| Source | What it's used for |
+| --- | --- |
+| [NASA HRP, 5 Hazards of Human Spaceflight](https://www.nasa.gov/hrp/hazards/) | Groups the indicators by hazard on the Learn page, and the "Why it changes in space" text |
+| [NASA HRP, Risks of Human Spaceflight](https://www.nasa.gov/hrp/risks/) | The named NASA risk shown for each indicator |
+| [NASA alert design guidance, Commercial LEO Destinations HSI workshop](https://ntrs.nasa.gov/api/citations/20240003565/downloads/CLD%20HSI%20Workshop%20Alerts.pdf) | Alert levels, acknowledgement and silencing an alarm by acting on it |
+| [NASA DONKI space weather database](https://ccmc.gsfc.nasa.gov/DONKI/) (CCMC), May 2024 solar storm | The solar storm scenario replays the real flares, CMEs and GOES particle arrivals (>10 MeV on 10 May, >100 MeV on 11 May 2024) with their real timing. The habitat dose rate is simulated, since DONKI records events, not dose. Data in `packages/shared/data/donki-2024-05.json`, downloaded once with `npm run fetch:donki` from the DONKI web service at `https://ccmc.gsfc.nasa.gov/DONKI/WS/get/`. |
 
 ## Sources
 
