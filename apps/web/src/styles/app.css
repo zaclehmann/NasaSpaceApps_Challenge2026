@@ -73,18 +73,26 @@
   50% { opacity: 0.7; box-shadow: 0 0 0 6px color-mix(in oklab, var(--ok) 0%, transparent); }
 }
 .anim-attention-ok { animation: mv-attention-ok 1.4s ease-in-out 5; }
-/* A crew picker row whose routine check is due now: tint and red bar while due (.row-due); the row blinks
-   5 times, or until it is opened (.anim-row-alert). Reduced motion keeps the tint and bar, no blink. */
+/* Crew picker rows (ui.md 5.7). A routine check due now: a neutral tint and bar (.row-due), blinking 5 times or
+   until the row is opened (.anim-row-alert). An astronaut at Warning: the red tint and bar (.row-warning), the
+   only red on the picker, with a red blink when a check is also due. Reduced motion keeps tint and bar, no blink. */
+/* Never darker than --muted, so status words on the row keep their contrast (WCAG AA) mid-blink. */
 @keyframes mv-row-alert {
-  0%, 100% { background-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  0%, 100% { background-color: var(--muted); }
+  50% { background-color: var(--background); }
+}
+@keyframes mv-row-alert-warning {
+  0%, 100% { background-color: color-mix(in oklab, var(--warning) 18%, var(--background)); }
   50% { background-color: var(--warning-tint); }
 }
-.row-due { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); }
+.row-due { background-color: var(--muted); box-shadow: inset 3px 0 0 var(--foreground); }
+.row-warning { background-color: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning); }
 .anim-row-alert { animation: mv-row-alert 1s ease-in-out 5; }
+.anim-row-alert-warning { animation: mv-row-alert-warning 1s ease-in-out 5; }
 
 
 @media (prefers-reduced-motion: reduce) {
-  .anim-attention-ok, .anim-row-alert { animation: none !important; }
+  .anim-attention-ok, .anim-row-alert, .anim-row-alert-warning { animation: none !important; }
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
