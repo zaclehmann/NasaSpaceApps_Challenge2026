@@ -16,7 +16,7 @@ import { BadgeIcon, StatusBadge } from "../status/StatusBadge";
 
 const MEANING: Record<Exclude<Status, "due">, string> = {
   ok: "Inside your demo range.",
-  watch: "In range but trending toward a limit, or a check is overdue.",
+  watch: "In range but trending toward a demo limit, or a check is overdue.",
   caution: "Outside the demo range. Needs attention, not immediate action.",
   warning: "Outside the critical demo range. Act now.",
   nodata: "A live sensor is silent, or a daily measurement wasn't done by the end of the day.",

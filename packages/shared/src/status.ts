@@ -377,14 +377,14 @@ export function statusLine(key: IndicatorKey, ev: Evaluation, now: number): stri
     case "overdue":
       return r && r.t >= startOfDay(now) ? "In range at the last reading. A routine check is overdue." : "Today's check is more than an hour overdue.";
     case "in-range":
-      if (key === "exercise") return "At or above the target of 120 minutes today.";
+      if (key === "exercise") return "At or above the demo target of 120 minutes today.";
       return `Inside your range of ${rangeTextFor(key, r)}.`;
     case "trend": {
       if (key === "mood") return "In range, but lower than your recent check-ins.";
       const verb = ev.side === "above" ? "rising" : "falling";
       const span = def.source === "entered" ? `over the last ${TREND_DAYS} days` : "over the last hour";
       const what = ev.component ? `${ev.component === "systolic" ? "Systolic" : "Diastolic"} is ${verb}` : `In range, but ${verb}`;
-      return `${what} toward the limit of ${fmtLimit(key, ev.limit ?? 0)} ${span}.`;
+      return `${what} toward the demo limit of ${fmtLimit(key, ev.limit ?? 0)} ${span}.`;
     }
     case "out-of-range": {
       const dur = def.source !== "entered" && ev.since !== undefined && r ? ` for ${formatDuration(Math.max(r.t - ev.since, def.expectedIntervalSec))}` : "";
@@ -393,17 +393,17 @@ export function statusLine(key: IndicatorKey, ev: Evaluation, now: number): stri
         return ev.twoDays ? "Very low on two days running. Below your range of Okay or better." : `${formatValue("mood", r?.value ?? 1)} today. Below your range of Okay or better.`;
       }
       if (key === "exercise") {
-        return ev.twoDays ? "Below 60 minutes on two days running. The target is 120 minutes a day." : `${Math.round(r?.value ?? 0)} minutes today. Below the target of 120 minutes.`;
+        return ev.twoDays ? "Below 60 minutes on two days running. The demo target is 120 minutes a day." : `${Math.round(r?.value ?? 0)} minutes today. Below the demo target of 120 minutes.`;
       }
       if (key === "bp" && r) {
         const which = ev.component === "diastolic" ? `Diastolic ${Math.round(r.value2 ?? 0)}` : `Systolic ${Math.round(r.value)}`;
         const rel = ev.side === "above" ? (ev.inclusive ? "at or above" : "above") : "below";
-        const what = ev.status === "warning" ? "the critical limit" : "the limit";
+        const what = ev.status === "warning" ? "the demo Warning limit" : "the demo limit";
         return `${which} mmHg is ${rel} ${what} of ${ev.limit} mmHg.`;
       }
-      if (ev.status === "warning") return `${side} the critical limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
+      if (ev.status === "warning") return `${side} the demo Warning limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
       // One-sided ranges read better as a limit than as a range.
-      if (def.low === undefined || def.high === undefined) return `${side} the limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
+      if (def.low === undefined || def.high === undefined) return `${side} the demo limit of ${fmtLimit(key, ev.limit ?? 0)}${dur}.`;
       return `${side} your range of ${rangeTextFor(key, r)}${dur}.`;
     }
   }
