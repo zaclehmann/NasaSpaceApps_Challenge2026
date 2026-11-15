@@ -12,7 +12,8 @@ export default defineConfig({
   logLevel: "warn",
   build: {
     ssr: fileURLToPath(new URL("./src/vercel.ts", import.meta.url)),
-    outDir: fileURLToPath(new URL("../../api", import.meta.url)),
+    // API_BUNDLE_OUT lets the freshness check (scripts/check-api-bundle.mjs) build to a temporary folder.
+    outDir: process.env.API_BUNDLE_OUT ?? fileURLToPath(new URL("../../api", import.meta.url)),
     emptyOutDir: false,
     target: "node20",
     minify: false,
