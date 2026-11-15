@@ -5,6 +5,7 @@ import {
   INDICATORS,
   INDICATOR_KEYS,
   MISSION_SETTINGS,
+  SOLAR_SEQUENCE,
   POSTPONE_MIN,
   ROUTINE,
   WINDOW_SEC,
@@ -13,9 +14,11 @@ import {
   formatValue,
   routineContext,
   routineEntries,
+  replaySequence,
   ruleText,
   sampleStepSec,
   startOfDay,
+  stormDoseRate,
   type Alert,
   type AlertActionKind,
   type Astronaut,
@@ -26,6 +29,7 @@ import {
   type MissionSetting,
   type MissionSettingId,
   type Reading,
+  type ReplayedEvent,
   type Report,
   type RoutineSummary,
   type ScenarioId,
@@ -257,10 +261,8 @@ export class MockSource implements DataSource {
 
     if (key === "radiation") {
       let v = RADIATION_BASE + slow * 1.2 + fast * 0.4 + noise * 0.15;
-      if (this.scenario === "solar-event") {
-        const f = clamp01((dt + 43 * MIN) / (30 * MIN));
-        v = lerp(v, 34 + fast * 1.5 + noise * 0.3, f);
-      }
+      // Solar storm: the real NASA DONKI event sequence (May 2024) on the mission clock; the dose is simulated.
+      if (this.scenario === "solar-event") v = stormDoseRate(t, this.stormEvents(), v, { fast, noise });
       return v;
     }
 
@@ -489,6 +491,17 @@ export class MockSource implements DataSource {
     this.linkUp = up;
     this.advanceReports();
     this.emit();
+  }
+
+  /** The DONKI sequence placed so the >100 MeV arrival was 30 minutes before the scenario started. */
+  private storm: { anchor: number; events: ReplayedEvent[] } | null = null;
+  private stormEvents(): ReplayedEvent[] {
+    if (this.storm?.anchor !== this.anchor) this.storm = { anchor: this.anchor, events: replaySequence(SOLAR_SEQUENCE, this.anchor) };
+    return this.storm.events;
+  }
+
+  getSolarEvents(): ReplayedEvent[] {
+    return this.scenario === "solar-event" ? this.stormEvents() : [];
   }
 
   private missionSetting(): MissionSetting {
