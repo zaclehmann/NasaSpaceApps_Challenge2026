@@ -28404,7 +28404,9 @@ var ReadingRequest = objectType({
 	tags: arrayType(stringType().max(40)).max(10).optional(),
 	note: Note.optional(),
 	device: DeviceIdZ,
-	taskId: ShortId.optional()
+	taskId: ShortId.optional(),
+	/** When it was taken (wall clock, from the session clock). The server keeps it within the last 10 minutes. */
+	takenAt: Iso.optional()
 }).strict();
 var SymptomRequest = objectType({
 	session: SessionId,
@@ -28416,7 +28418,9 @@ var SymptomRequest = objectType({
 	/** MET seconds when it started, as the app shows it. */
 	startedAt: numberType().finite(),
 	affectsWork: booleanType(),
-	note: Note.optional()
+	note: Note.optional(),
+	/** When it was logged (wall clock). The server keeps it within the last 10 minutes. */
+	loggedAt: Iso.optional()
 }).strict();
 var ResolveSymptomRequest = objectType({ session: SessionId }).strict();
 var RoutineRequest = objectType({
@@ -28699,6 +28703,19 @@ function rebuildSession(session, rows, nowWall) {
 }
 /** The crew list, so callers don't need the simulator import. */
 var SESSION_CREW = CREW;
+/** How far back and ahead a client-sent action time may be: it's clamped into this window around now. */
+var ACTION_TIME_PAST_MS = 6e5;
+var ACTION_TIME_FUTURE_MS = 5e3;
+/**
+* The time an action happened, as the browser sent it, kept within [now - 10 min, now + 5 s]. Using the
+* browser's time (not the moment the request arrived) gives browser and server the same alert ids and fire times.
+*/
+function actionTime(sent, now) {
+	const n = Date.parse(now);
+	if (!sent) return now;
+	const t = Math.min(n + ACTION_TIME_FUTURE_MS, Math.max(n - ACTION_TIME_PAST_MS, Date.parse(sent)));
+	return new Date(t).toISOString();
+}
 function parse(schema, input) {
 	const r = schema.safeParse(input);
 	if (!r.success) throw badRequest(zodMessage(r.error));
@@ -28846,7 +28863,7 @@ async function postReading(ctx, body) {
 		note: b.note ?? null,
 		device: b.device,
 		taskId: b.taskId ?? null,
-		takenAt: ctx.now()
+		takenAt: actionTime(b.takenAt, ctx.now())
 	});
 	const state = await stateOf(ctx, b.session, b.astronaut);
 	const ind = state.view.astronauts[b.astronaut];
@@ -28872,7 +28889,7 @@ async function postSymptom(ctx, body) {
 			affectsWork: b.affectsWork,
 			note: b.note ?? null,
 			startedAt: startedWall,
-			loggedAt: ctx.now(),
+			loggedAt: actionTime(b.loggedAt, ctx.now()),
 			resolvedAt: null
 		}),
 		state: await stateOf(ctx, b.session, b.astronaut)
@@ -28908,7 +28925,9 @@ var postponeTask = (ctx, body) => routineEvent(ctx, body, "postponed");
 /** The open alert with the app's id, and its stored row (saved first if it's new). */
 async function alertRow(ctx, sessionId, alertId) {
 	const state = await stateOf(ctx, sessionId);
-	const alert = Object.values(state.view.astronauts).flatMap((a) => a.alerts).find((a) => a.id === alertId);
+	const all = Object.values(state.view.astronauts).flatMap((a) => a.alerts);
+	const prefix = /^([a-z]+)-([a-z0-9]+)-/.exec(alertId);
+	const alert = all.find((a) => a.id === alertId) ?? (prefix ? all.find((a) => a.astronautId === prefix[1] && a.indicator === prefix[2]) : void 0);
 	if (!alert) throw notFound("No open alert with that id in this session.");
 	const row = state.rows.alerts.find((r) => r.astronautId === alert.astronautId && r.indicator === alert.indicator && !r.resolvedAt);
 	if (!row) throw new Error("open alert has no stored row");

@@ -3,6 +3,7 @@
 // and the overlays every page shares.
 import { createContext, useContext, type ReactNode } from "react";
 import type { Astronaut } from "@missionvitals/shared";
+import { warningKey } from "../../audio/alarmKey";
 import { useDueAlarm, useWarningTone } from "../../audio/alertTone";
 import { useUi } from "../../state/ui";
 import { useAstronaut, useHealth } from "../../data/DataProvider";
@@ -33,7 +34,8 @@ function Alarms({ view }: { view: HealthView }) {
   const { procedure, postponeTaskId } = useUi();
   const items = view.routine.entries.filter((e) => e.state.kind === "due").map((e) => ({ key: `${view.astronaut.id}:${e.task.id}:${e.dueAt}`, dueAt: e.dueAt }));
   useDueAlarm(items, view.now, procedure !== null || postponeTaskId !== null);
-  useWarningTone(view.alerts.filter((a) => a.status === "warning" && !a.acknowledged).map((a) => a.id));
+  // Keyed on astronaut, indicator, level and opening minute, so one alert never rings twice (audio/alarmKey.ts).
+  useWarningTone(view.alerts.filter((a) => a.status === "warning" && !a.acknowledged).map(warningKey));
   return null;
 }
 

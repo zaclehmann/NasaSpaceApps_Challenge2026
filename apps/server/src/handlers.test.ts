@@ -132,4 +132,25 @@ describe("API handlers", () => {
     expect(r.state.rows.readings).toHaveLength(0);
     expect(r.state.session.scenario).toBe("low-spo2");
   });
+
+  it("keeps the time a reading was taken, clamped to the last 10 minutes and at most 5 s ahead", async () => {
+    const { ctx, store } = setup();
+    await h.createSession(ctx, { id: S1 });
+    const now = Date.parse(ctx.now());
+    const post = (takenAt: string) => h.postReading(ctx, { session: S1, astronaut: "hana", indicator: "temp", value: 36.8, device: "thermometer", takenAt });
+    await post(new Date(now - 90_000).toISOString());
+    await post(new Date(now - 3 * 3600_000).toISOString());
+    await post(new Date(now + 60_000).toISOString());
+    const t = store.readings.map((r) => Date.parse(r.takenAt) - now);
+    expect(t).toEqual([-90_000, -h.ACTION_TIME_PAST_MS, h.ACTION_TIME_FUTURE_MS]);
+  });
+
+  it("acknowledges the open alert for the same astronaut and indicator when the id's time differs", async () => {
+    const { ctx, store } = setup();
+    await h.createSession(ctx, { id: S1 });
+    const r = await h.postReading(ctx, { session: S1, astronaut: "mira", indicator: "bp", value: 150, value2: 95, device: "cuff" });
+    const id = (r.alert as { id: string }).id.replace(/-(\d+)$/, (_m, n: string) => `-${Number(n) + 5}`);
+    await h.acknowledgeAlert(ctx, id, { session: S1 });
+    expect(store.alerts.find((a) => a.indicator === "bp")?.acknowledgedAt).toBeTruthy();
+  });
 });

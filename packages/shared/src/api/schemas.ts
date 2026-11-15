@@ -39,6 +39,8 @@ export const ReadingRequest = z
     note: Note.optional(),
     device: DeviceIdZ,
     taskId: ShortId.optional(),
+    /** When it was taken (wall clock, from the session clock). The server keeps it within the last 10 minutes. */
+    takenAt: Iso.optional(),
   })
   .strict();
 
@@ -54,6 +56,8 @@ export const SymptomRequest = z
     startedAt: z.number().finite(),
     affectsWork: z.boolean(),
     note: Note.optional(),
+    /** When it was logged (wall clock). The server keeps it within the last 10 minutes. */
+    loggedAt: Iso.optional(),
   })
   .strict();
 export const ResolveSymptomRequest = z.object({ session: SessionId }).strict();

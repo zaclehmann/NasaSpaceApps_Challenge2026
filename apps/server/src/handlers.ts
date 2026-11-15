@@ -38,6 +38,21 @@ export interface Ctx {
 /** Rows per session per table. */
 export const ROW_CAP = 500;
 
+/** How far back and ahead a client-sent action time may be: it's clamped into this window around now. */
+export const ACTION_TIME_PAST_MS = 10 * 60 * 1000;
+export const ACTION_TIME_FUTURE_MS = 5 * 1000;
+
+/**
+ * The time an action happened, as the browser sent it, kept within [now - 10 min, now + 5 s]. Using the
+ * browser's time (not the moment the request arrived) gives browser and server the same alert ids and fire times.
+ */
+export function actionTime(sent: string | undefined, now: string): string {
+  const n = Date.parse(now);
+  if (!sent) return now;
+  const t = Math.min(n + ACTION_TIME_FUTURE_MS, Math.max(n - ACTION_TIME_PAST_MS, Date.parse(sent)));
+  return new Date(t).toISOString();
+}
+
 function parse<S extends ZodTypeAny>(schema: S, input: unknown): z.infer<S> {
   const r = schema.safeParse(input);
   if (!r.success) throw badRequest(zodMessage(r.error));
@@ -165,7 +180,7 @@ export async function postReading(ctx: Ctx, body: unknown) {
     note: b.note ?? null,
     device: b.device,
     taskId: b.taskId ?? null,
-    takenAt: ctx.now(),
+    takenAt: actionTime(b.takenAt, ctx.now()),
   });
   const state = await stateOf(ctx, b.session, b.astronaut);
   const ind = (state.view.astronauts as Record<string, { indicators: Record<string, { status: string }>; alerts: { id: string; indicator: string; status: string; acknowledged: boolean }[] }>)[b.astronaut];
@@ -187,7 +202,7 @@ export async function postSymptom(ctx: Ctx, body: unknown) {
     affectsWork: b.affectsWork,
     note: b.note ?? null,
     startedAt: startedWall,
-    loggedAt: ctx.now(),
+    loggedAt: actionTime(b.loggedAt, ctx.now()),
     resolvedAt: null,
   });
   return { symptom: row, state: await stateOf(ctx, b.session, b.astronaut) };
@@ -226,7 +241,10 @@ export const postponeTask = (ctx: Ctx, body: unknown) => routineEvent(ctx, body,
 async function alertRow(ctx: Ctx, sessionId: string, alertId: string): Promise<AlertRowT> {
   const state = await stateOf(ctx, sessionId);
   const all = Object.values(state.view.astronauts as Record<string, { alerts: { id: string; astronautId: string; indicator: string }[] }>).flatMap((a) => a.alerts);
-  const alert = all.find((a) => a.id === alertId);
+  // The id carries the fire time. If it differs slightly (an older client), fall back to the open alert for the
+  // same astronaut and indicator, which the id starts with: "<astronaut>-<indicator>-<time>".
+  const prefix = /^([a-z]+)-([a-z0-9]+)-/.exec(alertId);
+  const alert = all.find((a) => a.id === alertId) ?? (prefix ? all.find((a) => a.astronautId === prefix[1] && a.indicator === prefix[2]) : undefined);
   if (!alert) throw notFound("No open alert with that id in this session.");
   const row = state.rows.alerts.find((r) => r.astronautId === alert.astronautId && r.indicator === alert.indicator && !r.resolvedAt);
   if (!row) throw new Error("open alert has no stored row");
