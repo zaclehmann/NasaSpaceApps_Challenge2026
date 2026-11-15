@@ -10,23 +10,16 @@ import type {
   Mission,
   ReplayedEvent,
   MissionSettingId,
+  NewReport,
   NewSymptom,
   Reading,
   Report,
-  ReportItem,
   RoutineSummary,
   ScenarioId,
   Symptom,
-  Urgency,
 } from "@missionvitals/shared";
 
-export interface NewReport {
-  urgency: Urgency;
-  note: string;
-  items: ReportItem[];
-  actions: string[];
-  symptoms?: string[];
-}
+export type { NewReport } from "@missionvitals/shared";
 
 export interface DataSource {
   getCrew(): Astronaut[];
