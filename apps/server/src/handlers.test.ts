@@ -174,21 +174,27 @@ describe("API handlers", () => {
     expect((await post({ indicator: "temp", value: 43, device: "thermometer" })).status).toBe(200);
   });
 
-  it("sends another astronaut's symptoms and mood only to the crew medical officer", async () => {
+  it("hides another astronaut's symptom details and private mood fields unless the viewer is the crew medical officer", async () => {
     const { ctx } = setup();
     await h.createSession(ctx, { id: S1 });
     await h.postSymptom(ctx, { session: S1, astronaut: "hana", viewer: "hana", partId: "o-head", layer: "organs", kind: "Headache", severity: 4, note: "since breakfast", startedAt: 141 * 86400 + 14 * 3600, affectsWork: false });
     await h.postReading(ctx, { session: S1, astronaut: "hana", viewer: "hana", indicator: "mood", value: 2, stress: 4, tags: ["Tired"], note: "rough night", device: "self" });
     const as = async (viewer?: string) => (await h.getState(ctx, { session: S1, ...(viewer && { astronaut: viewer }) })).rows;
     const mira = await as("mira");
-    expect(mira.symptoms.filter((x) => x.astronautId === "hana")).toHaveLength(0);
+    // Mira gets Hana's symptom hidden: its status level and times, no body part, symptom, severity or note.
+    const hidden = mira.symptoms.filter((x) => x.astronautId === "hana");
+    expect(hidden).toHaveLength(1);
+    expect(hidden[0]).toMatchObject({ hidden: true, level: "caution", bodyPart: null, symptom: null, severity: null, note: null });
+    expect(hidden[0].loggedAt).toBeTruthy();
     // Hana's mood value stays (her overall status), without the private fields.
     expect(mira.readings.filter((x) => x.astronautId === "hana" && x.indicator === "mood").map((x) => [x.stress, x.tags, x.note])).toEqual([[null, null, null]]);
     const tomas = await as("tomas");
-    expect(tomas.symptoms.filter((x) => x.astronautId === "hana")).toHaveLength(1);
+    // The crew medical officer gets the full row.
+    expect(tomas.symptoms.filter((x) => x.astronautId === "hana")).toMatchObject([{ bodyPart: "o-head", symptom: "Headache", severity: 4, note: "since breakfast" }]);
+    expect(tomas.symptoms[0].hidden).toBeUndefined();
     expect(tomas.readings.find((x) => x.astronautId === "hana" && x.indicator === "mood")?.note).toBe("rough night");
     expect((await as("hana")).symptoms).toHaveLength(1);
-    // The crew picker (no one chosen yet) gets no private rows.
-    expect((await as()).symptoms).toHaveLength(0);
+    // The crew picker (no one chosen yet) gets only hidden symptoms.
+    expect((await as()).symptoms.every((x) => x.hidden && x.bodyPart === null)).toBe(true);
   });
 });

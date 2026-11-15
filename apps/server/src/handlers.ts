@@ -18,6 +18,8 @@ import {
   SymptomRequest,
   rebuildSession,
   sessionClock,
+  symptomStatus,
+  type SessionClock,
   type AlertRowT,
   type HealthResponseT,
   type SessionInfoT,
@@ -126,15 +128,45 @@ function canSee(viewer: string | null | undefined, astronautId: string): boolean
 }
 
 /**
- * The rows this viewer may receive, unless the viewer is the crew medical officer: other astronauts' symptoms are
- * left out, their mood check-ins lose the private fields (stress, tags, note), and their reports lose the
- * symptoms line. The mood value stays, for their overall status; the screen shows their mood as Private.
+ * The rows this viewer may receive, unless the viewer is the crew medical officer:
+ * - other astronauts' symptoms are hidden: id, astronaut, status level, logged and resolved times only (no body
+ *   part, symptom, severity or note), so the screen shows "Symptom logged" with its status and it still counts
+ *   toward that astronaut's status;
+ * - their mood check-ins lose the private fields (stress, tags, note); the value stays for their status, and the
+ *   screen shows their mood as Private;
+ * - their reports lose the symptoms line.
  */
-function rowsFor(rows: SessionRowsT, viewer: string | null | undefined): SessionRowsT {
+function rowsFor(rows: SessionRowsT, viewer: string | null | undefined, clock: SessionClock, nowMet: number): SessionRowsT {
   return {
     ...rows,
     readings: rows.readings.map((r) => (r.indicator !== "mood" || canSee(viewer, r.astronautId) ? r : { ...r, stress: null, tags: null, note: null })),
-    symptoms: rows.symptoms.filter((s) => canSee(viewer, s.astronautId)),
+    symptoms: rows.symptoms.map((s) =>
+      canSee(viewer, s.astronautId)
+        ? s
+        : {
+            id: s.id,
+            astronautId: s.astronautId,
+            bodyPart: null,
+            layer: null,
+            symptom: null,
+            severity: null,
+            affectsWork: null,
+            note: null,
+            startedAt: null,
+            loggedAt: s.loggedAt,
+            resolvedAt: s.resolvedAt,
+            hidden: true,
+            level: symptomStatus(
+              {
+                severity: s.severity ?? 0,
+                startedAt: clock.met(s.startedAt ?? s.loggedAt),
+                affectsWork: s.affectsWork ?? false,
+                ...(s.resolvedAt && { resolvedAt: clock.met(s.resolvedAt) }),
+              },
+              nowMet,
+            ),
+          },
+    ),
     reports: rows.reports.map((r) => (canSee(viewer, r.astronautId) ? r : { ...r, summary: { items: r.summary.items, actions: r.summary.actions } })),
   };
 }
@@ -170,7 +202,7 @@ async function stateOf(ctx: Ctx, loaded: Loaded, viewer?: string | null): Promis
     downlink: e.getDownlinkQueue(),
     solarEvents: e.getSolarEvents(),
   };
-  return { serverTime, nowMet: rebuilt.nowMet, session, rows: rowsFor({ ...rows, alerts }, viewer), view };
+  return { serverTime, nowMet: rebuilt.nowMet, session, rows: rowsFor({ ...rows, alerts }, viewer, rebuilt.clock, rebuilt.nowMet), view };
 }
 
 /* ---------- endpoints ---------- */

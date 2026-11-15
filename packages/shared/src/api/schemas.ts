@@ -135,18 +135,24 @@ export const ReadingRow = z.object({
   taskId: z.string().nullable(),
   takenAt: Iso,
 });
+/**
+ * A symptom row. For a crewmate's symptom sent to someone who isn't the crew medical officer it is `hidden`:
+ * body part, symptom, severity, note, start and "affects work" are null, and `level` carries its status.
+ */
 export const SymptomRow = z.object({
   id: z.number(),
   astronautId: AstronautId,
-  bodyPart: z.string(),
-  layer: BodyLayerZ,
-  symptom: z.string(),
-  severity: z.number(),
-  affectsWork: z.boolean(),
+  bodyPart: z.string().nullable(),
+  layer: BodyLayerZ.nullable(),
+  symptom: z.string().nullable(),
+  severity: z.number().nullable(),
+  affectsWork: z.boolean().nullable(),
   note: z.string().nullable(),
-  startedAt: Iso,
+  startedAt: Iso.nullable(),
   loggedAt: Iso,
   resolvedAt: Iso.nullable(),
+  hidden: z.boolean().optional(),
+  level: z.enum(["watch", "caution", "warning"]).nullable().optional(),
 });
 export const RoutineRow = z.object({
   id: z.number(),

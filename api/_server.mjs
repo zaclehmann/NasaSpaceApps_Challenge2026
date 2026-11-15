@@ -22910,6 +22910,22 @@ var BODY_PARTS = [
 	...pair("s-foot", "ankle and foot", "skeleton", BOTH, MSK, EX)
 ];
 Object.fromEntries(BODY_PARTS.map((p) => [p.id, p]));
+// packages/shared/src/symptoms.ts
+/** Demo: an active symptom older than this is Caution even if mild. */
+var SYMPTOM_LASTING_SEC = 2 * DAY;
+/**
+* Demo status for one symptom, or null once it is resolved (it then adds nothing to its region).
+* Warning: severity 7 or more, or it affects work.
+* Caution: severity 4 to 6, or it has lasted more than 2 days.
+* Watch: any other active symptom (severity 0 to 3).
+*/
+function symptomStatus(s, now) {
+	if (s.resolvedAt !== void 0 && s.resolvedAt <= now) return null;
+	if (s.hidden) return s.level ?? null;
+	if (s.severity >= 7 || s.affectsWork) return "warning";
+	if (s.severity >= 4 || now - s.startedAt > SYMPTOM_LASTING_SEC) return "caution";
+	return "watch";
+}
 var donki_2024_05_default = {
 	source: {
 		"urls": [
@@ -28621,18 +28637,28 @@ var ReadingRow = objectType({
 	taskId: stringType().nullable(),
 	takenAt: Iso
 });
+/**
+* A symptom row. For a crewmate's symptom sent to someone who isn't the crew medical officer it is `hidden`:
+* body part, symptom, severity, note, start and "affects work" are null, and `level` carries its status.
+*/
 var SymptomRow = objectType({
 	id: numberType(),
 	astronautId: AstronautId,
-	bodyPart: stringType(),
-	layer: BodyLayerZ,
-	symptom: stringType(),
-	severity: numberType(),
-	affectsWork: booleanType(),
+	bodyPart: stringType().nullable(),
+	layer: BodyLayerZ.nullable(),
+	symptom: stringType().nullable(),
+	severity: numberType().nullable(),
+	affectsWork: booleanType().nullable(),
 	note: stringType().nullable(),
-	startedAt: Iso,
+	startedAt: Iso.nullable(),
 	loggedAt: Iso,
-	resolvedAt: Iso.nullable()
+	resolvedAt: Iso.nullable(),
+	hidden: booleanType().optional(),
+	level: enumType([
+		"watch",
+		"caution",
+		"warning"
+	]).nullable().optional()
 });
 var RoutineRow = objectType({
 	id: numberType(),
@@ -28748,13 +28774,22 @@ function rebuildSession(session, rows, nowWall) {
 		steps.push({
 			t: at(s.loggedAt),
 			order: 3,
-			run: () => engine.addSymptom(s.astronautId, {
-				partId: s.bodyPart,
-				layer: s.layer,
-				kind: s.symptom,
-				severity: s.severity,
-				startedAt: at(s.startedAt),
-				affectsWork: s.affectsWork,
+			run: () => engine.addSymptom(s.astronautId, s.hidden ? {
+				partId: "",
+				layer: "organs",
+				kind: "",
+				severity: 0,
+				startedAt: at(s.loggedAt),
+				affectsWork: false,
+				hidden: true,
+				level: s.level ?? null
+			} : {
+				partId: s.bodyPart ?? "",
+				layer: s.layer ?? "organs",
+				kind: s.symptom ?? "",
+				severity: s.severity ?? 0,
+				startedAt: at(s.startedAt ?? s.loggedAt),
+				affectsWork: s.affectsWork ?? false,
 				...s.note !== null && { note: s.note }
 			}, symptomIdOf(s.id))
 		});
@@ -28916,11 +28951,15 @@ function canSee(viewer, astronautId) {
 	return viewer === astronautId || (SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false);
 }
 /**
-* The rows this viewer may receive, unless the viewer is the crew medical officer: other astronauts' symptoms are
-* left out, their mood check-ins lose the private fields (stress, tags, note), and their reports lose the
-* symptoms line. The mood value stays, for their overall status; the screen shows their mood as Private.
+* The rows this viewer may receive, unless the viewer is the crew medical officer:
+* - other astronauts' symptoms are hidden: id, astronaut, status level, logged and resolved times only (no body
+*   part, symptom, severity or note), so the screen shows "Symptom logged" with its status and it still counts
+*   toward that astronaut's status;
+* - their mood check-ins lose the private fields (stress, tags, note); the value stays for their status, and the
+*   screen shows their mood as Private;
+* - their reports lose the symptoms line.
 */
-function rowsFor(rows, viewer) {
+function rowsFor(rows, viewer, clock, nowMet) {
 	return {
 		...rows,
 		readings: rows.readings.map((r) => r.indicator !== "mood" || canSee(viewer, r.astronautId) ? r : {
@@ -28929,7 +28968,26 @@ function rowsFor(rows, viewer) {
 			tags: null,
 			note: null
 		}),
-		symptoms: rows.symptoms.filter((s) => canSee(viewer, s.astronautId)),
+		symptoms: rows.symptoms.map((s) => canSee(viewer, s.astronautId) ? s : {
+			id: s.id,
+			astronautId: s.astronautId,
+			bodyPart: null,
+			layer: null,
+			symptom: null,
+			severity: null,
+			affectsWork: null,
+			note: null,
+			startedAt: null,
+			loggedAt: s.loggedAt,
+			resolvedAt: s.resolvedAt,
+			hidden: true,
+			level: symptomStatus({
+				severity: s.severity ?? 0,
+				startedAt: clock.met(s.startedAt ?? s.loggedAt),
+				affectsWork: s.affectsWork ?? false,
+				...s.resolvedAt && { resolvedAt: clock.met(s.resolvedAt) }
+			}, nowMet)
+		}),
 		reports: rows.reports.map((r) => canSee(viewer, r.astronautId) ? r : {
 			...r,
 			summary: {
@@ -28983,7 +29041,7 @@ async function stateOf(ctx, loaded, viewer) {
 		rows: rowsFor({
 			...rows,
 			alerts
-		}, viewer),
+		}, viewer, rebuilt.clock, rebuilt.nowMet),
 		view
 	};
 }
