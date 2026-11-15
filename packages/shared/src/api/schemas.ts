@@ -105,6 +105,8 @@ export const SessionInfo = z.object({
   earthLinkUp: z.boolean(),
   sleepPeriod: z.boolean(),
   missionSetting: MissionSettingIdZ,
+  /** When the session last made a request; written at most once a minute. */
+  lastSeenAt: Iso.optional(),
 });
 
 export const ReadingRow = z.object({

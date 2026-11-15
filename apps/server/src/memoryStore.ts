@@ -35,18 +35,22 @@ export class MemoryStore implements Store {
     this.guard();
     return this.sessions.get(id) ?? null;
   }
+  async getSessionWithRows(id: string) {
+    this.guard();
+    const session = this.sessions.get(id);
+    return session ? { session, rows: await this.loadRows(id) } : null;
+  }
   async ensureSession(id: string, now: string) {
     this.guard();
     if (!this.sessions.has(id))
-      this.sessions.set(id, { id, createdAt: now, astronautId: null, scenario: "hr-exercise", scenarioTarget: "hana", scenarioStartedAt: now, earthLinkUp: true, sleepPeriod: false, missionSetting: "mars-transit" });
+      this.sessions.set(id, { id, createdAt: now, astronautId: null, scenario: "hr-exercise", scenarioTarget: "hana", scenarioStartedAt: now, earthLinkUp: true, sleepPeriod: false, missionSetting: "mars-transit", lastSeenAt: now });
     return this.sessions.get(id)!;
   }
   async updateSession(id: string, p: SessionPatch) {
     this.guard();
     const s = this.sessions.get(id);
     if (!s) return;
-    const { lastSeenAt: _l, ...rest } = p;
-    this.sessions.set(id, { ...s, ...Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) });
+    this.sessions.set(id, { ...s, ...Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) });
   }
   async deleteSession(id: string) {
     this.guard();

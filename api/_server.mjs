@@ -21609,7 +21609,8 @@ var toSession = (r) => ({
 	scenarioStartedAt: String(r.scenario_started_at),
 	earthLinkUp: Boolean(r.earth_link_up),
 	sleepPeriod: Boolean(r.sleep_period),
-	missionSetting: r.mission_setting
+	missionSetting: r.mission_setting,
+	lastSeenAt: r.last_seen_at ? String(r.last_seen_at) : void 0
 });
 var toReading = (r) => ({
 	id: Number(r.id),
@@ -21740,25 +21741,38 @@ var SupabaseStore = class {
 			"alert_events"
 		]) check(await this.db.from(t).delete().eq("session_id", id), `clear ${t}`);
 	}
-	async loadRows(id) {
-		const [readings, symptoms, routine, alerts, reports] = await Promise.all([
+	/** Six queries in parallel: one round trip to the database. Alert actions come through their alert's session. */
+	rowQueries(id) {
+		return [
 			this.db.from("entered_readings").select("*").eq("session_id", id).order("taken_at"),
 			this.db.from("symptoms").select("*").eq("session_id", id).order("logged_at"),
 			this.db.from("routine_events").select("*").eq("session_id", id).order("at"),
 			this.db.from("alert_events").select("*").eq("session_id", id).order("opened_at"),
+			this.db.from("alert_actions").select("id, alert_event_id, kind, note, at, alert_events!inner(session_id)").eq("alert_events.session_id", id).order("at"),
 			this.db.from("reports").select("*").eq("session_id", id).order("queued_at")
-		]);
-		const alertRows = (check(alerts, "load alerts") ?? []).map(toAlert);
-		const ids = alertRows.map((a) => a.id);
-		const actions = ids.length ? check(await this.db.from("alert_actions").select("*").in("alert_event_id", ids).order("at"), "load actions") : [];
+		];
+	}
+	toRows(res) {
+		const [readings, symptoms, routine, alerts, actions, reports] = res.map((r, i) => check(r, `load rows ${i}`) ?? []);
 		return {
-			readings: (check(readings, "load readings") ?? []).map(toReading),
-			symptoms: (check(symptoms, "load symptoms") ?? []).map(toSymptom),
-			routine: (check(routine, "load routine") ?? []).map(toRoutine),
-			alerts: alertRows,
-			actions: (actions ?? []).map(toAction),
-			reports: (check(reports, "load reports") ?? []).map(toReport)
+			readings: readings.map(toReading),
+			symptoms: symptoms.map(toSymptom),
+			routine: routine.map(toRoutine),
+			alerts: alerts.map(toAlert),
+			actions: actions.map(toAction),
+			reports: reports.map(toReport)
 		};
+	}
+	async loadRows(id) {
+		return this.toRows(await Promise.all(this.rowQueries(id)));
+	}
+	async getSessionWithRows(id) {
+		const [session, ...rows] = await Promise.all([this.db.from("sessions").select("*").eq("id", id).maybeSingle(), ...this.rowQueries(id)]);
+		const s = check(session, "get session");
+		return s ? {
+			session: toSession(s),
+			rows: this.toRows(rows)
+		} : null;
 	}
 	async count(table, sessionId) {
 		if (table === "alert_actions") {
@@ -21834,11 +21848,7 @@ var SupabaseStore = class {
 			acknowledged_at: r.acknowledgedAt,
 			resolved_at: r.resolvedAt
 		};
-		check(await this.db.from("alert_events").upsert(row, {
-			onConflict: "session_id,astronaut_id,indicator,opened_at",
-			ignoreDuplicates: true
-		}), "insert alert");
-		return toAlert(check(await this.db.from("alert_events").select("*").eq("session_id", sessionId).eq("astronaut_id", r.astronautId).eq("indicator", r.indicator).eq("opened_at", r.openedAt).single(), "read alert"));
+		return toAlert(check(await this.db.from("alert_events").upsert(row, { onConflict: "session_id,astronaut_id,indicator,opened_at" }).select().single(), "insert alert"));
 	}
 	async updateAlert(sessionId, rowId, p) {
 		const row = {};
@@ -28474,7 +28484,9 @@ var SessionInfo = objectType({
 	scenarioStartedAt: Iso,
 	earthLinkUp: booleanType(),
 	sleepPeriod: booleanType(),
-	missionSetting: MissionSettingIdZ
+	missionSetting: MissionSettingIdZ,
+	/** When the session last made a request; written at most once a minute. */
+	lastSeenAt: Iso.optional()
 });
 var ReadingRow = objectType({
 	id: numberType(),
@@ -28721,16 +28733,29 @@ function parse(schema, input) {
 	if (!r.success) throw badRequest(zodMessage(r.error));
 	return r.data;
 }
+/** The session and all its rows, in one round of parallel queries. */
 async function load(ctx, sessionId) {
-	const session = await ctx.store.getSession(sessionId);
-	if (!session) throw notFound("Unknown session. Create it with POST /api/session first.");
-	return {
-		session,
-		rows: await ctx.store.loadRows(sessionId)
-	};
+	const loaded = await ctx.store.getSessionWithRows(sessionId);
+	if (!loaded) throw notFound("Unknown session. Open the app (GET /api/state) or POST /api/session first.");
+	return loaded;
 }
-async function capped(ctx, table, sessionId) {
-	if (await ctx.store.count(table, sessionId) >= 500) throw new ApiError(429, `This demo session has reached its limit of 500 ${table.replace("_", " ")}. Reset the demo to start again.`);
+var ROWS_OF = {
+	entered_readings: "readings",
+	symptoms: "symptoms",
+	routine_events: "routine",
+	alert_events: "alerts",
+	alert_actions: "actions",
+	reports: "reports"
+};
+/** The 500-row cap, counted from the rows already loaded (no count query). */
+function capped(loaded, table) {
+	if (loaded.rows[ROWS_OF[table]].length >= 500) throw new ApiError(429, `This demo session has reached its limit of 500 ${table.replace("_", " ")}. Reset the demo to start again.`);
+}
+/** last_seen_at, written at most once a minute so polls don't write every 5 seconds. */
+async function touch(ctx, session) {
+	const now = ctx.now();
+	if (session.lastSeenAt && Date.parse(now) - Date.parse(session.lastSeenAt) < 6e4) return;
+	await ctx.store.updateSession(session.id, { lastSeenAt: now }).catch(() => void 0);
 }
 /**
 * Saves alert openings, closings and level changes. An open alert is matched to the unresolved row for the same
@@ -28743,7 +28768,7 @@ async function persistAlerts(ctx, session, rows, engine, wall) {
 	for (const a of open) {
 		const row = out.find((r) => r.astronautId === a.astronautId && r.indicator === a.indicator && !r.resolvedAt);
 		if (!row) {
-			if (await ctx.store.count("alert_events", session.id) >= 500) continue;
+			if (out.length >= 500) continue;
 			const created = await ctx.store.insertAlert(session.id, {
 				astronautId: a.astronautId,
 				indicator: a.indicator,
@@ -28771,9 +28796,12 @@ async function persistAlerts(ctx, session, rows, engine, wall) {
 	}
 	return out;
 }
-/** Rebuild the session, save alert changes, and return what the screen needs. */
-async function stateOf(ctx, sessionId, viewer) {
-	const { session, rows } = await load(ctx, sessionId);
+/**
+* Rebuild the session, save alert changes (only when one opens, changes level or closes), and return what the
+* screen needs. Takes the session as already loaded, so a write doesn't load everything again.
+*/
+async function stateOf(ctx, loaded, viewer) {
+	const { session, rows } = loaded;
 	const serverTime = ctx.now();
 	const rebuilt = rebuildSession(session, rows, serverTime);
 	const alerts = await persistAlerts(ctx, session, rows, rebuilt.engine, rebuilt.clock.wall);
@@ -28836,10 +28864,23 @@ async function createSession(ctx, body) {
 	await ctx.store.updateSession(id, { lastSeenAt: ctx.now() });
 	return s;
 }
+/** The screen state. Creates the session if it doesn't exist yet, so opening the app is one request. */
 async function getState(ctx, query) {
 	const q = parse(StateQuery, query);
-	await ctx.store.updateSession(q.session, { lastSeenAt: ctx.now() }).catch(() => void 0);
-	return stateOf(ctx, q.session, q.astronaut);
+	let loaded = await ctx.store.getSessionWithRows(q.session);
+	if (!loaded) loaded = {
+		session: await ctx.store.ensureSession(q.session, ctx.now()),
+		rows: {
+			readings: [],
+			symptoms: [],
+			routine: [],
+			alerts: [],
+			actions: [],
+			reports: []
+		}
+	};
+	const [state] = await Promise.all([stateOf(ctx, loaded, q.astronaut), touch(ctx, loaded.session)]);
+	return state;
 }
 async function getReadings(ctx, query) {
 	const q = parse(ReadingsQuery, query);
@@ -28850,7 +28891,8 @@ async function getReadings(ctx, query) {
 async function postReading(ctx, body) {
 	const b = parse(ReadingRequest, body);
 	if (b.indicator === "bp" && b.value2 === void 0) throw badRequest("value2: blood pressure needs the diastolic value");
-	await capped(ctx, "entered_readings", b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "entered_readings");
 	const row = await ctx.store.insertReading(b.session, {
 		astronautId: b.astronaut,
 		indicator: b.indicator,
@@ -28865,7 +28907,8 @@ async function postReading(ctx, body) {
 		taskId: b.taskId ?? null,
 		takenAt: actionTime(b.takenAt, ctx.now())
 	});
-	const state = await stateOf(ctx, b.session, b.astronaut);
+	loaded.rows.readings.push(row);
+	const state = await stateOf(ctx, loaded, b.astronaut);
 	const ind = state.view.astronauts[b.astronaut];
 	return {
 		reading: row,
@@ -28876,23 +28919,26 @@ async function postReading(ctx, body) {
 }
 async function postSymptom(ctx, body) {
 	const b = parse(SymptomRequest, body);
-	await capped(ctx, "symptoms", b.session);
-	const { session } = await load(ctx, b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "symptoms");
+	const { session } = loaded;
 	const startedWall = new Date(Math.min(Date.parse(ctx.now()), Date.parse(sessionClock(session.createdAt).wall(b.startedAt)))).toISOString();
+	const row = await ctx.store.insertSymptom(b.session, {
+		astronautId: b.astronaut,
+		bodyPart: b.partId,
+		layer: b.layer,
+		symptom: b.kind,
+		severity: b.severity,
+		affectsWork: b.affectsWork,
+		note: b.note ?? null,
+		startedAt: startedWall,
+		loggedAt: actionTime(b.loggedAt, ctx.now()),
+		resolvedAt: null
+	});
+	loaded.rows.symptoms.push(row);
 	return {
-		symptom: await ctx.store.insertSymptom(b.session, {
-			astronautId: b.astronaut,
-			bodyPart: b.partId,
-			layer: b.layer,
-			symptom: b.kind,
-			severity: b.severity,
-			affectsWork: b.affectsWork,
-			note: b.note ?? null,
-			startedAt: startedWall,
-			loggedAt: actionTime(b.loggedAt, ctx.now()),
-			resolvedAt: null
-		}),
-		state: await stateOf(ctx, b.session, b.astronaut)
+		symptom: row,
+		state: await stateOf(ctx, loaded, b.astronaut)
 	};
 }
 /** `id` is the symptom's id as the app shows it ("sym-db-12") or the bare row number. */
@@ -28900,17 +28946,20 @@ async function resolveSymptom(ctx, id, body) {
 	const b = parse(ResolveSymptomRequest, body);
 	const rowId = Number(id.replace(/^sym-db-/, ""));
 	if (!Number.isInteger(rowId) || rowId <= 0) throw badRequest("id: not a symptom id");
-	await load(ctx, b.session);
-	if (!await ctx.store.resolveSymptom(b.session, rowId, ctx.now())) throw notFound("No open symptom with that id in this session.");
-	return { state: await stateOf(ctx, b.session) };
+	const loaded = await load(ctx, b.session);
+	const now = ctx.now();
+	if (!await ctx.store.resolveSymptom(b.session, rowId, now)) throw notFound("No open symptom with that id in this session.");
+	const sym = loaded.rows.symptoms.find((x) => x.id === rowId);
+	if (sym) sym.resolvedAt = now;
+	return { state: await stateOf(ctx, loaded) };
 }
 async function routineEvent(ctx, body, kind) {
 	const b = kind === "completed" ? parse(RoutineRequest, body) : parse(PostponeRequest, body);
-	await capped(ctx, "routine_events", b.session);
-	await load(ctx, b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "routine_events");
 	const now = ctx.now();
 	const minutes = "minutes" in b ? Number(b.minutes) : 0;
-	await ctx.store.insertRoutine(b.session, {
+	const row = await ctx.store.insertRoutine(b.session, {
 		astronautId: b.astronaut,
 		taskId: b.taskId,
 		day: now.slice(0, 10),
@@ -28918,13 +28967,15 @@ async function routineEvent(ctx, body, kind) {
 		at: now,
 		postponedUntil: kind === "postponed" ? new Date(Date.parse(now) + minutes * 6e4).toISOString() : null
 	});
-	return { state: await stateOf(ctx, b.session, b.astronaut) };
+	loaded.rows.routine.push(row);
+	return { state: await stateOf(ctx, loaded, b.astronaut) };
 }
 var completeTask = (ctx, body) => routineEvent(ctx, body, "completed");
 var postponeTask = (ctx, body) => routineEvent(ctx, body, "postponed");
 /** The open alert with the app's id, and its stored row (saved first if it's new). */
-async function alertRow(ctx, sessionId, alertId) {
-	const state = await stateOf(ctx, sessionId);
+async function alertRow(ctx, loaded, alertId) {
+	const state = await stateOf(ctx, loaded);
+	loaded.rows.alerts = state.rows.alerts;
 	const all = Object.values(state.view.astronauts).flatMap((a) => a.alerts);
 	const prefix = /^([a-z]+)-([a-z0-9]+)-/.exec(alertId);
 	const alert = all.find((a) => a.id === alertId) ?? (prefix ? all.find((a) => a.astronautId === prefix[1] && a.indicator === prefix[2]) : void 0);
@@ -28935,41 +28986,49 @@ async function alertRow(ctx, sessionId, alertId) {
 }
 async function acknowledgeAlert(ctx, alertId, body) {
 	const b = parse(AcknowledgeRequest, body);
-	const row = await alertRow(ctx, b.session, alertId);
-	if (!row.acknowledgedAt) await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: ctx.now() });
-	return { state: await stateOf(ctx, b.session) };
+	const loaded = await load(ctx, b.session);
+	const row = await alertRow(ctx, loaded, alertId);
+	if (!row.acknowledgedAt) {
+		row.acknowledgedAt = ctx.now();
+		await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: row.acknowledgedAt });
+	}
+	return { state: await stateOf(ctx, loaded) };
 }
 async function logAlertAction(ctx, alertId, body) {
 	const b = parse(AlertActionRequest, body);
-	await capped(ctx, "alert_actions", b.session);
-	const row = await alertRow(ctx, b.session, alertId);
-	await ctx.store.insertAction(b.session, {
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "alert_actions");
+	const row = await alertRow(ctx, loaded, alertId);
+	loaded.rows.actions.push(await ctx.store.insertAction(b.session, {
 		alertEventId: row.id,
 		kind: b.kind,
 		note: b.note ?? null,
 		at: ctx.now()
-	});
-	return { state: await stateOf(ctx, b.session) };
+	}));
+	return { state: await stateOf(ctx, loaded) };
 }
 async function queueReport(ctx, body) {
 	const b = parse(ReportRequest, body);
-	await capped(ctx, "reports", b.session);
-	const { session } = await load(ctx, b.session);
+	const loaded = await load(ctx, b.session);
+	capped(loaded, "reports");
+	const { session } = loaded;
 	const now = ctx.now();
+	const row = await ctx.store.insertReport(b.session, {
+		astronautId: b.astronaut,
+		urgency: b.urgency,
+		note: b.note,
+		summary: {
+			items: b.items,
+			actions: b.actions,
+			...b.symptoms && { symptoms: b.symptoms }
+		},
+		queuedAt: now,
+		sentAt: session.earthLinkUp ? now : null
+	});
+	loaded.rows.reports.push(row);
 	return {
-		report: await ctx.store.insertReport(b.session, {
-			astronautId: b.astronaut,
-			urgency: b.urgency,
-			note: b.note,
-			summary: {
-				items: b.items,
-				actions: b.actions,
-				...b.symptoms && { symptoms: b.symptoms }
-			},
-			queuedAt: now,
-			sentAt: session.earthLinkUp ? now : null
-		}),
-		state: await stateOf(ctx, b.session, b.astronaut)
+		report: row,
+		state: await stateOf(ctx, loaded, b.astronaut)
 	};
 }
 async function demo(ctx, body) {
@@ -28978,24 +29037,25 @@ async function demo(ctx, body) {
 		await ctx.store.deleteSession(b.session);
 		return { reset: true };
 	}
-	const { session } = await load(ctx, b.session);
+	const session = await ctx.store.getSession(b.session);
+	if (!session) throw notFound("Unknown session. Open the app (GET /api/state) or POST /api/session first.");
 	const now = ctx.now();
-	if (b.scenario !== void 0) {
-		await ctx.store.clearScenarioRows(b.session);
-		await ctx.store.updateSession(b.session, {
-			scenario: b.scenario,
-			scenarioTarget: b.target ?? session.scenarioTarget,
-			scenarioStartedAt: now
-		});
-	}
-	if (b.earthLinkUp !== void 0) {
-		await ctx.store.updateSession(b.session, { earthLinkUp: b.earthLinkUp });
-		if (b.earthLinkUp) await ctx.store.sendQueuedReports(b.session, now);
-	}
-	if (b.sleepPeriod !== void 0) await ctx.store.updateSession(b.session, { sleepPeriod: b.sleepPeriod });
-	if (b.missionSetting !== void 0) await ctx.store.updateSession(b.session, { missionSetting: b.missionSetting });
-	if (b.astronaut !== void 0) await ctx.store.updateSession(b.session, { astronautId: b.astronaut });
-	return { state: await stateOf(ctx, b.session) };
+	const patch = {};
+	if (b.scenario !== void 0) Object.assign(patch, {
+		scenario: b.scenario,
+		scenarioTarget: b.target ?? session.scenarioTarget,
+		scenarioStartedAt: now
+	});
+	if (b.earthLinkUp !== void 0) patch.earthLinkUp = b.earthLinkUp;
+	if (b.sleepPeriod !== void 0) patch.sleepPeriod = b.sleepPeriod;
+	if (b.missionSetting !== void 0) patch.missionSetting = b.missionSetting;
+	if (b.astronaut !== void 0) patch.astronautId = b.astronaut;
+	await Promise.all([
+		b.scenario !== void 0 ? ctx.store.clearScenarioRows(b.session) : void 0,
+		Object.keys(patch).length ? ctx.store.updateSession(b.session, patch) : void 0,
+		b.earthLinkUp ? ctx.store.sendQueuedReports(b.session, now) : void 0
+	]);
+	return { state: await stateOf(ctx, await load(ctx, b.session)) };
 }
 // apps/server/src/router.ts
 /** Request bodies larger than this are refused. */

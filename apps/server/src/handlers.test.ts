@@ -43,7 +43,11 @@ describe("API handlers", () => {
     const { ctx } = setup();
     expect((await route(ctx, "GET", "/api/health", {}, undefined)).body).toMatchObject({ ok: true, db: "up" });
     expect((await route(ctx, "POST", "/api/session", {}, JSON.stringify({ id: "nope" }))).status).toBe(400);
-    expect((await route(ctx, "GET", "/api/state", { session: S2 }, undefined)).status).toBe(404);
+    // Opening the app is one request: /state creates a session it doesn't know yet.
+    expect((await route(ctx, "GET", "/api/state", { session: S2 }, undefined)).status).toBe(200);
+    // A write to an unknown session is refused.
+    const S3 = "33333333-3333-4333-8333-333333333333";
+    expect((await route(ctx, "POST", "/api/readings", {}, JSON.stringify({ session: S3, astronaut: "hana", indicator: "temp", value: 36.8, device: "thermometer" }))).status).toBe(404);
     expect((await route(ctx, "GET", "/api/nothing", {}, undefined)).status).toBe(404);
   });
 

@@ -20,6 +20,8 @@ export interface Store {
   /** True when the database answers. Never throws. */
   ping(): Promise<boolean>;
   getSession(id: string): Promise<SessionInfoT | null>;
+  /** The session and all its rows in one round of parallel queries; null if there is no such session. */
+  getSessionWithRows(id: string): Promise<{ session: SessionInfoT; rows: SessionRowsT } | null>;
   /** Creates the session if it doesn't exist yet; either way returns it. */
   ensureSession(id: string, now: string): Promise<SessionInfoT>;
   updateSession(id: string, patch: SessionPatch): Promise<void>;

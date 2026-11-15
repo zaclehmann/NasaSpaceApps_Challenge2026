@@ -1,6 +1,7 @@
 // AI-assisted: generated with Claude Code, reviewed and edited by Zac Lehmann.
 // Smoke test for the API: health, create a session, post a blood pressure reading, read /state, check the reading
 // is there and Caution, then reset the session (deletes its rows). Node built-ins only; it never sees a secret.
+// Each step prints how long its request took, in ms.
 // Usage: node scripts/smoke-api.mjs [base-url]   (default http://localhost:3001, the local API from npm run dev:api)
 //        node scripts/smoke-api.mjs https://<preview>.vercel.app
 import { randomUUID } from "node:crypto";
@@ -11,7 +12,9 @@ const base = (process.argv[2] ?? "http://localhost:3001").replace(/\/+$/, "");
 const session = randomUUID();
 let failed = false;
 
+let lastMs = 0;
 async function call(method, path, body) {
+  const t0 = performance.now();
   const res = await fetch(`${base}/api/${path}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -19,6 +22,7 @@ async function call(method, path, body) {
     signal: AbortSignal.timeout(15000),
   });
   const text = await res.text();
+  lastMs = Math.round(performance.now() - t0);
   let json;
   try {
     json = JSON.parse(text);
@@ -30,7 +34,7 @@ async function call(method, path, body) {
 }
 
 function step(name, ok, detail = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${String(lastMs).padStart(5)} ms  ${name}${detail ? `  (${detail})` : ""}`);
   if (!ok) failed = true;
 }
 
@@ -45,8 +49,8 @@ try {
   const st = await call("GET", `state?session=${session}&astronaut=tomas`);
   const stored = st.rows.readings.some((x) => x.indicator === "bp" && x.value === 150 && x.value2 === 95);
   step("GET /api/state has the reading", stored, `${st.rows.readings.length} stored reading(s), mira bp ${st.view.astronauts.mira.indicators.bp.status}`);
-  const other = await call("GET", `state?session=${randomUUID()}`).catch((e) => e);
-  step("an unknown session is refused", other instanceof Error && /404/.test(other.message));
+  const other = await call("POST", "readings", { session: randomUUID(), astronaut: "hana", indicator: "temp", value: 36.8, device: "thermometer" }).catch((e) => e);
+  step("a write to an unknown session is refused", other instanceof Error && /404/.test(other.message));
 } catch (err) {
   step("request", false, err.message);
 } finally {
