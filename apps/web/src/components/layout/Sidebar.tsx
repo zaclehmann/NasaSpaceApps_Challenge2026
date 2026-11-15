@@ -10,7 +10,7 @@ import clsx from "clsx";
 import { BookOpen, ClipboardList, FlaskConical, HeartPulse, ListChecks, Menu, MousePointerClick, SlidersHorizontal, Stethoscope, Users, X, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { formatDelay, formatMet, missionDay, type Status } from "@missionvitals/shared";
+import { formatDelay, formatMissionTime, type Status } from "@missionvitals/shared";
 import { useConnection } from "../../data/connection";
 import { useAstronaut, useData, useMission } from "../../data/DataProvider";
 import { useUi } from "../../state/ui";
@@ -266,8 +266,7 @@ export function Sidebar() {
             <Group id="sidebar-mission" title="Mission">
               <dl>
                 <Fact label="Vehicle">{mission.name}</Fact>
-                <Fact label="Mission day">{missionDay(mission.met)}</Fact>
-                <Fact label="Mission clock">MET {formatMet(mission.met)}</Fact>
+                <Fact label="Mission time">{formatMissionTime(mission.met)}</Fact>
                 <Fact label="Onboard server">
                   <OnboardServerFact />
                 </Fact>

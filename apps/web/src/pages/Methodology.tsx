@@ -60,7 +60,8 @@ function Content() {
       <H2>Simulation</H2>
       <P>
         All data comes from a seeded generator, so every load shows the same data. Live signals are a baseline for each astronaut, plus a daily rhythm, a slow drift that pulls back toward the baseline, and small noise. Live
-        signals update every 5 seconds and the dosimeter every minute. Each astronaut has 30 days of history.
+        signals update every 5 seconds and the dosimeter every minute. Each astronaut has 30 days of history. Times are mission elapsed time (MET), shown as "Mission day 142, 14:33 MET": day 142 is the day that begins
+        after 141 full days have elapsed, so it is MET 141 days, 14 hours and 33 minutes.
       </P>
       <P>Seven scenarios change the simulated data itself:</P>
       <ol className="mt-2 list-decimal space-y-1 pl-5 type-small">

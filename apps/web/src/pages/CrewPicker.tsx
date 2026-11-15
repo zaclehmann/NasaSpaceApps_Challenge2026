@@ -121,8 +121,10 @@ export default function CrewPicker() {
         <span className="type-body font-semibold">MissionVitals</span>
         <span className="flex gap-4 whitespace-nowrap tabular-nums">
           <span className="max-sm:hidden">{mission.name}</span>
-          <span className="text-muted-foreground">Mission day {missionDay(mission.met)}</span>
-          <span className="text-muted-foreground max-sm:hidden">{formatClock(mission.met)} MET</span>
+          <span className="text-muted-foreground">
+            Mission day {missionDay(mission.met)}
+            <span className="max-sm:hidden">, {formatClock(mission.met)} MET</span>
+          </span>
         </span>
       </header>
       <main className="mx-auto max-w-[1100px] px-4 pt-[10vh] pb-12 md:px-6">
