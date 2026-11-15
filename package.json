@@ -18,7 +18,7 @@
     "test": "npm run test -w @missionvitals/shared && npm run test -w @missionvitals/server",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "fetch:donki": "node scripts/fetch-donki.mjs",
-    "build:api": "vite build --config apps/server/vite.config.ts",
+    "build:api": "vite build --config apps/server/bundle.config.ts",
     "dev:api": "npm run build:api && node --env-file=.env.local scripts/dev-api.mjs",
     "dev:full": "vercel dev"
   },
