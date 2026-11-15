@@ -2,15 +2,28 @@
 // Demo controls (ui.md 5.10). Scenarios change the simulated data itself, not only the display.
 import clsx from "clsx";
 import { MISSION_SETTINGS, SCENARIOS, formatDelay } from "@missionvitals/shared";
+import { connectionMode } from "../../data/connection";
 import { useAstronaut, useCrew, useData, useMission } from "../../data/DataProvider";
+import { api } from "../../data/httpSource";
+import { clearSessionId, sessionId } from "../../data/session";
 import { resetAttention } from "../../state/attention";
 import { useUi } from "../../state/ui";
 import { useThemeChoice, type ThemeChoice } from "../../theme/useTheme";
+import { Button } from "../ui/Button";
 import { Scale } from "../ui/Scale";
 import { Sheet } from "../ui/Sheet";
 import { Switch } from "../ui/Switch";
 
 const THEMES: ThemeChoice[] = ["system", "light", "dark"];
+
+/** Server mode: delete this session's rows and start a new session. Local mode: start over. Then reload. */
+async function resetDemo() {
+  if (connectionMode() === "server") {
+    await api("demo", { method: "POST", body: { session: sessionId(), reset: true } }).catch(() => undefined);
+    clearSessionId();
+  }
+  window.location.reload();
+}
 
 function RadioRow({ name, checked, onChange, title, description }: { name: string; checked: boolean; onChange: () => void; title: string; description?: string }) {
   return (
@@ -81,6 +94,14 @@ export function DemoSheet() {
         </section>
 
         <Scale legend="Theme" labels={["System", "Light", "Dark"]} value={THEMES.indexOf(theme) + 1} onChange={(v) => setTheme(THEMES[v - 1])} />
+
+        <section className="flex items-center justify-between gap-4">
+          <span className="min-w-0">
+            <span className="block type-small font-medium">Reset demo</span>
+            <span className="block type-caption text-subtle-foreground">Clears everything entered on this device and starts again.</span>
+          </span>
+          <Button onClick={() => void resetDemo()}>Reset demo</Button>
+        </section>
 
         <fieldset>
           <legend className="type-small font-semibold">Astronaut</legend>

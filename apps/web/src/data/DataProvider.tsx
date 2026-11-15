@@ -26,7 +26,13 @@ function applyUrlParams(source: DataSource): string | null {
   return validAstronaut;
 }
 
-export function DataProvider({ source = mockSource, children }: { source?: DataSource; children: ReactNode }) {
+/**
+ * `initial` is the source pickSource chose (the onboard server or the in-browser simulator). `fallback`, when it
+ * fires, swaps to the simulator for the rest of the visit: the server stopped answering.
+ */
+export function DataProvider({ source: initial = mockSource, fallback, children }: { source?: DataSource; fallback?: { subscribe: (cb: () => void) => void }; children: ReactNode }) {
+  const [source, setSource] = useState<DataSource>(initial);
+  useEffect(() => fallback?.subscribe(() => setSource(mockSource)), [fallback]);
   const [version, setVersion] = useState(0);
   // Every load starts at "Who's checking in?". Only a demo link (?astronaut=) opens someone directly.
   const [astronautId, setId] = useState<string | null>(() => applyUrlParams(source));

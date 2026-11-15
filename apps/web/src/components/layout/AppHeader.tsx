@@ -5,6 +5,7 @@
 import clsx from "clsx";
 import { Link, NavLink } from "react-router-dom";
 import { formatDelay, formatMet, missionDay } from "@missionvitals/shared";
+import { useConnection } from "../../data/connection";
 import { useAstronaut, useData, useMission } from "../../data/DataProvider";
 import { useUi } from "../../state/ui";
 import { BadgeIcon } from "../status/StatusBadge";
@@ -12,6 +13,24 @@ import { Button } from "../ui/Button";
 import { NAV, Sidebar, useSwitchAstronaut } from "./Sidebar";
 
 const Rule = ({ className }: { className?: string }) => <span aria-hidden="true" className={clsx("h-5 w-px shrink-0 bg-border", className)} />;
+
+/**
+ * The onboard server, its own item beside the Earth link: losing Earth and losing the onboard server are different
+ * states. Connected is quiet; fallen back to local mode is a Watch with the word, shown at every width.
+ * Local mode chosen with ?local=1 (the video) is stated plainly, without a Watch.
+ */
+export function OnboardStatus({ className }: { className?: string }) {
+  const { mode } = useConnection();
+  if (mode === "offline")
+    return (
+      <span className={clsx("flex items-center gap-1.5 whitespace-nowrap text-watch-text", className)}>
+        <BadgeIcon status="watch" />
+        <span className="max-lg:hidden">Onboard server: offline, local mode</span>
+        <span className="lg:hidden">Server offline</span>
+      </span>
+    );
+  return <span className={clsx("whitespace-nowrap text-muted-foreground max-lg:hidden", className)}>Onboard server: {mode === "server" ? "connected" : "local mode"}</span>;
+}
 
 export function EarthLinkStatus({ className }: { className?: string }) {
   const { source } = useData();
@@ -61,6 +80,7 @@ export function AppHeader() {
         <span className="whitespace-nowrap text-muted-foreground max-2xl:hidden">MET {formatMet(mission.met)}</span>
         <Rule className="max-md:hidden" />
         <EarthLinkStatus />
+        <OnboardStatus />
       </div>
 
       <div className="flex items-center justify-end gap-3 max-md:hidden">

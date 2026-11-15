@@ -26,6 +26,10 @@ Other commands:
 | `npm run typecheck` | Type-check both packages |
 | `npm test` | Unit tests for the status function |
 | `npm run check:supabase` | Check that the Supabase project in `.env.local` can be reached |
+| `npm run dev:api` | Local API on port 3001 (needs `.env.local`). With `npm run dev` alongside, the app uses it (server mode) |
+| `npm run dev:full` | Web and API together with `vercel dev` (needs the Vercel CLI, logged in and linked) |
+| `npm run build:api` | Bundle the API into `api/_server.mjs` for the Vercel function (part of `npm run build`) |
+| `http://localhost:5173/?local=1` | Force local mode: the in-browser simulator, no server (for recording the video) |
 
 ## Configuration
 
