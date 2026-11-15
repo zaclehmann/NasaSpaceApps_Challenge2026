@@ -18,6 +18,7 @@ import { Tabs } from "../ui/Tabs";
 import { EscalationLevels, type EscalationLevel } from "./EscalationLevels";
 import { PanelShell, Section } from "./PanelShell";
 import { RelatedItems } from "./RelatedItems";
+import { SolarStormNote } from "./SolarStormNote";
 import { AcknowledgeButton, ResponseActions, ResponsePlan, alertFor } from "./ResponsePlan";
 import { Steps } from "./WhatToDo";
 
@@ -205,6 +206,7 @@ export function IndicatorDetail({ view, indicator }: { view: HealthView; indicat
                   </p>
                 </div>
               </Section>
+              {indicator === "radiation" && <SolarStormNote />}
               <Section title={`How to measure, procedure ${g.howToMeasure.procedureId}`}>
                 <p className="mb-2 type-caption text-subtle-foreground">Equipment: {g.howToMeasure.equipment.toLowerCase()}.</p>
                 <Steps steps={g.howToMeasure.steps} />

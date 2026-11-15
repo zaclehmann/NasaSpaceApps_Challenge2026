@@ -20,5 +20,5 @@ export const SCENARIOS: Scenario[] = [
   { id: "high-bp", number: 4, name: "High blood pressure", description: "The morning blood pressure reading is high: Caution." },
   { id: "mood-falling", number: 5, name: "Mood falling", description: "Mood has slipped over the past week: Watch. Enter Low at the check-in to see Caution." },
   { id: "sensor-dropout", number: 6, name: "Shirt sensor dropout", description: "The shirt stops reporting heart rate and SpO₂: No data." },
-  { id: "solar-event", number: 7, name: "Solar particle event", description: "Habitat radiation rises for the whole crew: Caution." },
+  { id: "solar-event", number: 7, name: "Solar storm (real NASA timing, May 2024)", description: "Replays the flares, CMEs and particle arrivals of the May 2024 solar storm from NASA DONKI records. Habitat radiation rises for the whole crew: Caution. The dose is simulated." },
 ];
