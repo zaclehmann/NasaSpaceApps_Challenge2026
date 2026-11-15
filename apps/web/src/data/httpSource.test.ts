@@ -26,8 +26,9 @@ function fakeServer() {
 
 async function open(server: ReturnType<typeof fakeServer>) {
   await route(server.ctx, "POST", "/api/session", {}, JSON.stringify({ id: SID }));
-  const s = await route(server.ctx, "GET", "/api/state", { session: SID }, undefined);
-  return new HttpSource(SID, StateResponse.parse(s.body), () => {});
+  const s = await route(server.ctx, "GET", "/api/state", { session: SID, astronaut: "hana" }, undefined);
+  // Viewing as Hana, as the app does once she is chosen: her own private rows come back.
+  return new HttpSource(SID, StateResponse.parse(s.body), () => {}, "hana");
 }
 
 describe("httpSource: actions during a save in flight", () => {

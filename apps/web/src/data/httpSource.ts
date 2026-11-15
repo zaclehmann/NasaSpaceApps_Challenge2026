@@ -70,13 +70,24 @@ export class HttpSource implements DataSource {
   private inflight = new Map<string, Promise<unknown>>();
   /** Local symptom id to the server's, once its create has answered. */
   private idMap = new Map<string, string>();
+  /** Who is looking. The server sends other astronauts' private rows only to the crew medical officer. */
+  private viewer: string | null = null;
 
   constructor(
     private readonly session: string,
     initial: StateResponseT,
     private readonly onFail: () => void,
+    viewer: string | null = null,
   ) {
+    this.viewer = viewer;
     this.apply(initial);
+  }
+
+  /** A different viewer may see different private rows: fetch them now. */
+  setViewer(astronautId: string | null): void {
+    if (astronautId === this.viewer) return;
+    this.viewer = astronautId;
+    void this.poll();
   }
 
   /* ----- clock and state ----- */
@@ -139,7 +150,7 @@ export class HttpSource implements DataSource {
     if (this.stopped || document.hidden) return;
     const started = this.seq;
     try {
-      const s = StateResponse.parse(await api(`state?session=${this.session}`));
+      const s = StateResponse.parse(await api(`state?session=${this.session}${this.viewer ? `&astronaut=${this.viewer}` : ""}`));
       this.failures = 0;
       if (this.pending || started !== this.seq) return;
       this.apply(s);
@@ -189,7 +200,7 @@ export class HttpSource implements DataSource {
   }
 
   private post(path: string, body: Record<string, unknown>) {
-    return api<{ state?: unknown }>(path, { method: "POST", body: { session: this.session, ...body } });
+    return api<{ state?: unknown }>(path, { method: "POST", body: { session: this.session, viewer: this.viewer, ...body } });
   }
 
   /** Waits for a create in flight (ignoring its failure, which is reported on its own). */

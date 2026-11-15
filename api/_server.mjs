@@ -28482,6 +28482,12 @@ var UrgencyZ = enumType([
 var Iso = stringType().datetime({ offset: true });
 var Note = stringType().max(500, { message: "note must be 500 characters or fewer" });
 var ShortId = stringType().min(1).max(40);
+/** Who is looking at the screen. The answer leaves out other astronauts' private rows unless this is the CMO. */
+var Viewer = { viewer: enumType([
+	"hana",
+	"mira",
+	"tomas"
+]).nullable().optional() };
 var SessionRequest = objectType({ id: SessionId }).strict();
 var StateQuery = objectType({
 	session: SessionId,
@@ -28494,6 +28500,7 @@ var ReadingsQuery = objectType({
 	window: ChartWindowZ
 });
 var ReadingRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	indicator: EnteredIndicator,
@@ -28521,6 +28528,7 @@ var ReadingRequest = objectType({
 	});
 });
 var SymptomRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	partId: ShortId,
@@ -28534,20 +28542,29 @@ var SymptomRequest = objectType({
 	/** When it was logged (wall clock). The server keeps it within the last 10 minutes. */
 	loggedAt: Iso.optional()
 }).strict();
-var ResolveSymptomRequest = objectType({ session: SessionId }).strict();
+var ResolveSymptomRequest = objectType({
+	...Viewer,
+	session: SessionId
+}).strict();
 var RoutineRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	taskId: ShortId
 }).strict();
 var PostponeRequest = RoutineRequest.extend({ minutes: numberType().int().min(1).max(1440) }).strict();
-var AcknowledgeRequest = objectType({ session: SessionId }).strict();
+var AcknowledgeRequest = objectType({
+	...Viewer,
+	session: SessionId
+}).strict();
 var AlertActionRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	kind: AlertActionKindZ,
 	note: Note.optional()
 }).strict();
 var ReportRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	astronaut: AstronautId,
 	urgency: UrgencyZ,
@@ -28568,6 +28585,7 @@ var ReportRequest = objectType({
 	symptoms: arrayType(stringType().max(200)).max(30).optional()
 }).strict();
 var DemoRequest = objectType({
+	...Viewer,
 	session: SessionId,
 	scenario: ScenarioIdZ.optional(),
 	target: AstronautId.optional(),
@@ -28898,6 +28916,35 @@ async function persistAlerts(ctx, session, rows, engine, wall) {
 	}
 	return out;
 }
+/** May this viewer see this astronaut's private data (symptoms, mood)? The app's rule: themselves, or the CMO. */
+function canSee(viewer, astronautId) {
+	if (!viewer) return false;
+	return viewer === astronautId || (SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false);
+}
+/**
+* The rows this viewer may receive, unless the viewer is the crew medical officer: other astronauts' symptoms are
+* left out, their mood check-ins lose the private fields (stress, tags, note), and their reports lose the
+* symptoms line. The mood value stays, for their overall status; the screen shows their mood as Private.
+*/
+function rowsFor(rows, viewer) {
+	return {
+		...rows,
+		readings: rows.readings.map((r) => r.indicator !== "mood" || canSee(viewer, r.astronautId) ? r : {
+			...r,
+			stress: null,
+			tags: null,
+			note: null
+		}),
+		symptoms: rows.symptoms.filter((s) => canSee(viewer, s.astronautId)),
+		reports: rows.reports.map((r) => canSee(viewer, r.astronautId) ? r : {
+			...r,
+			summary: {
+				items: r.summary.items,
+				actions: r.summary.actions
+			}
+		})
+	};
+}
 /**
 * Rebuild the session, save alert changes (only when one opens, changes level or closes), and return what the
 * screen needs. Takes the session as already loaded, so a write doesn't load everything again.
@@ -28908,12 +28955,11 @@ async function stateOf(ctx, loaded, viewer) {
 	const rebuilt = rebuildSession(session, rows, serverTime);
 	const alerts = await persistAlerts(ctx, session, rows, rebuilt.engine, rebuilt.clock.wall);
 	const e = rebuilt.engine;
-	const viewerIsCmo = SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false;
 	const view = {
 		crew: e.getCrew(),
 		mission: e.getMission(),
 		astronauts: Object.fromEntries(SESSION_CREW.map((a) => {
-			const open = !viewer || viewer === a.id || viewerIsCmo;
+			const open = canSee(viewer, a.id);
 			const indicators = Object.fromEntries(Object.keys(INDICATORS).filter((k) => open || k !== "mood").map((k) => {
 				const ev = e.evaluateIndicator(a.id, k);
 				return [k, {
@@ -28940,10 +28986,10 @@ async function stateOf(ctx, loaded, viewer) {
 		serverTime,
 		nowMet: rebuilt.nowMet,
 		session,
-		rows: {
+		rows: rowsFor({
 			...rows,
 			alerts
-		},
+		}, viewer),
 		view
 	};
 }
@@ -29009,7 +29055,7 @@ async function postReading(ctx, body) {
 		takenAt: actionTime(b.takenAt, ctx.now())
 	});
 	loaded.rows.readings.push(row);
-	const state = await stateOf(ctx, loaded, b.astronaut);
+	const state = await stateOf(ctx, loaded, b.viewer);
 	const ind = state.view.astronauts[b.astronaut];
 	return {
 		reading: row,
@@ -29039,7 +29085,7 @@ async function postSymptom(ctx, body) {
 	loaded.rows.symptoms.push(row);
 	return {
 		symptom: row,
-		state: await stateOf(ctx, loaded, b.astronaut)
+		state: await stateOf(ctx, loaded, b.viewer)
 	};
 }
 /** `id` is the symptom's id as the app shows it ("sym-db-12") or the bare row number. */
@@ -29052,7 +29098,7 @@ async function resolveSymptom(ctx, id, body) {
 	if (!await ctx.store.resolveSymptom(b.session, rowId, now)) throw notFound("No open symptom with that id in this session.");
 	const sym = loaded.rows.symptoms.find((x) => x.id === rowId);
 	if (sym) sym.resolvedAt = now;
-	return { state: await stateOf(ctx, loaded) };
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 async function routineEvent(ctx, body, kind) {
 	const b = kind === "completed" ? parse(RoutineRequest, body) : parse(PostponeRequest, body);
@@ -29069,7 +29115,7 @@ async function routineEvent(ctx, body, kind) {
 		postponedUntil: kind === "postponed" ? new Date(Date.parse(now) + minutes * 6e4).toISOString() : null
 	});
 	loaded.rows.routine.push(row);
-	return { state: await stateOf(ctx, loaded, b.astronaut) };
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 var completeTask = (ctx, body) => routineEvent(ctx, body, "completed");
 var postponeTask = (ctx, body) => routineEvent(ctx, body, "postponed");
@@ -29093,7 +29139,7 @@ async function acknowledgeAlert(ctx, alertId, body) {
 		row.acknowledgedAt = ctx.now();
 		await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: row.acknowledgedAt });
 	}
-	return { state: await stateOf(ctx, loaded) };
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 async function logAlertAction(ctx, alertId, body) {
 	const b = parse(AlertActionRequest, body);
@@ -29106,7 +29152,7 @@ async function logAlertAction(ctx, alertId, body) {
 		note: b.note ?? null,
 		at: ctx.now()
 	}));
-	return { state: await stateOf(ctx, loaded) };
+	return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 async function queueReport(ctx, body) {
 	const b = parse(ReportRequest, body);
@@ -29129,7 +29175,7 @@ async function queueReport(ctx, body) {
 	loaded.rows.reports.push(row);
 	return {
 		report: row,
-		state: await stateOf(ctx, loaded, b.astronaut)
+		state: await stateOf(ctx, loaded, b.viewer)
 	};
 }
 async function demo(ctx, body) {
@@ -29156,7 +29202,7 @@ async function demo(ctx, body) {
 		Object.keys(patch).length ? ctx.store.updateSession(b.session, patch) : void 0,
 		b.earthLinkUp ? ctx.store.sendQueuedReports(b.session, now) : void 0
 	]);
-	return { state: await stateOf(ctx, await load(ctx, b.session)) };
+	return { state: await stateOf(ctx, await load(ctx, b.session), b.viewer) };
 }
 // apps/server/src/router.ts
 /** Request bodies larger than this are refused. */

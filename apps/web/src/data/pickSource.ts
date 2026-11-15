@@ -24,12 +24,20 @@ export async function pickSource(onDrop: () => void, budgetMs: number = Math.max
   try {
     // One request: /state creates this device's session if it's new, and fails if the database is down.
     const id = sessionId();
-    const state = StateResponse.parse(await api(`state?session=${id}`, { timeoutMs: budgetMs }));
+    // A demo link may open an astronaut directly: ask for that viewer's rows from the start.
+    const viewer = new URLSearchParams(window.location.search).get("astronaut");
+    const valid = viewer && ["hana", "mira", "tomas"].includes(viewer) ? viewer : null;
+    const state = StateResponse.parse(await api(`state?session=${id}${valid ? `&astronaut=${valid}` : ""}`, { timeoutMs: budgetMs }));
     setConnection("server");
-    return new HttpSource(id, state, () => {
-      setConnection("offline", true);
-      onDrop();
-    });
+    return new HttpSource(
+      id,
+      state,
+      () => {
+        setConnection("offline", true);
+        onDrop();
+      },
+      valid,
+    );
   } catch {
     // The toast says so once the app is on screen (ConnectionNotice).
     setConnection("offline", true);

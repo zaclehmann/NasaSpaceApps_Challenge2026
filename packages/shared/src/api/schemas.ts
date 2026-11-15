@@ -19,6 +19,8 @@ export const UrgencyZ = z.enum(["routine", "24h", "urgent"]);
 const Iso = z.string().datetime({ offset: true });
 const Note = z.string().max(500, { message: "note must be 500 characters or fewer" });
 const ShortId = z.string().min(1).max(40);
+/** Who is looking at the screen. The answer leaves out other astronauts' private rows unless this is the CMO. */
+const Viewer = { viewer: z.enum(["hana", "mira", "tomas"]).nullable().optional() };
 
 /* ---------- requests ---------- */
 
@@ -28,6 +30,7 @@ export const ReadingsQuery = z.object({ session: SessionId, astronaut: Astronaut
 
 export const ReadingRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     astronaut: AstronautId,
     indicator: EnteredIndicator,
@@ -52,6 +55,7 @@ export const ReadingRequest = z
 
 export const SymptomRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     astronaut: AstronautId,
     partId: ShortId,
@@ -66,16 +70,17 @@ export const SymptomRequest = z
     loggedAt: Iso.optional(),
   })
   .strict();
-export const ResolveSymptomRequest = z.object({ session: SessionId }).strict();
+export const ResolveSymptomRequest = z.object({ ...Viewer, session: SessionId }).strict();
 
-export const RoutineRequest = z.object({ session: SessionId, astronaut: AstronautId, taskId: ShortId }).strict();
+export const RoutineRequest = z.object({ ...Viewer, session: SessionId, astronaut: AstronautId, taskId: ShortId }).strict();
 export const PostponeRequest = RoutineRequest.extend({ minutes: z.number().int().min(1).max(24 * 60) }).strict();
 
-export const AcknowledgeRequest = z.object({ session: SessionId }).strict();
-export const AlertActionRequest = z.object({ session: SessionId, kind: AlertActionKindZ, note: Note.optional() }).strict();
+export const AcknowledgeRequest = z.object({ ...Viewer, session: SessionId }).strict();
+export const AlertActionRequest = z.object({ ...Viewer, session: SessionId, kind: AlertActionKindZ, note: Note.optional() }).strict();
 
 export const ReportRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     astronaut: AstronautId,
     urgency: UrgencyZ,
@@ -88,6 +93,7 @@ export const ReportRequest = z
 
 export const DemoRequest = z
   .object({
+    ...Viewer,
     session: SessionId,
     scenario: ScenarioIdZ.optional(),
     target: AstronautId.optional(),

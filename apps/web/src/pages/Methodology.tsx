@@ -79,7 +79,7 @@ function Content() {
       <P>
         In server mode the app talks to a Node API (Vercel serverless functions) that stores everything the astronaut does, such as entered readings, symptoms, routine actions, alert acknowledgements and actions, and
         reports, in a Postgres database (Supabase). Supabase stands in for Postgres on an onboard server; on a spacecraft the same database would run on board, not in the cloud. Live readings are simulated from a
-        seeded model shared by the server and the browser, so they don't need to be stored. Each browser gets its own demo session, so one person's actions never change another's screen. The server decides
+        seeded model shared by the server and the browser, so they don't need to be stored. Each browser gets its own demo session, so one person's actions never change another's screen. The server also enforces privacy: an astronaut's symptoms and the private parts of a mood check-in (stress, tags and notes) go only to that astronaut and the crew medical officer. The server decides
         statuses and alerts with the same rules the app shows. If the server doesn't answer within 3 seconds at load, or fails three times in a row, the app switches to local mode: the same simulator in the
         browser, with "Onboard server: offline, local mode" in the header. Losing the onboard server and losing the Earth link are separate states, shown separately.
       </P>

@@ -120,24 +120,43 @@ async function persistAlerts(ctx: Ctx, session: SessionInfoT, rows: SessionRowsT
   return out;
 }
 
+/** May this viewer see this astronaut's private data (symptoms, mood)? The app's rule: themselves, or the CMO. */
+function canSee(viewer: string | null | undefined, astronautId: string): boolean {
+  if (!viewer) return false;
+  return viewer === astronautId || (SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false);
+}
+
+/**
+ * The rows this viewer may receive, unless the viewer is the crew medical officer: other astronauts' symptoms are
+ * left out, their mood check-ins lose the private fields (stress, tags, note), and their reports lose the
+ * symptoms line. The mood value stays, for their overall status; the screen shows their mood as Private.
+ */
+function rowsFor(rows: SessionRowsT, viewer: string | null | undefined): SessionRowsT {
+  return {
+    ...rows,
+    readings: rows.readings.map((r) => (r.indicator !== "mood" || canSee(viewer, r.astronautId) ? r : { ...r, stress: null, tags: null, note: null })),
+    symptoms: rows.symptoms.filter((s) => canSee(viewer, s.astronautId)),
+    reports: rows.reports.map((r) => (canSee(viewer, r.astronautId) ? r : { ...r, summary: { items: r.summary.items, actions: r.summary.actions } })),
+  };
+}
+
 /**
  * Rebuild the session, save alert changes (only when one opens, changes level or closes), and return what the
  * screen needs. Takes the session as already loaded, so a write doesn't load everything again.
  */
-async function stateOf(ctx: Ctx, loaded: Loaded, viewer?: string): Promise<StateResponseT> {
+async function stateOf(ctx: Ctx, loaded: Loaded, viewer?: string | null): Promise<StateResponseT> {
   const { session, rows } = loaded;
   const serverTime = ctx.now();
   const rebuilt = rebuildSession(session, rows, serverTime);
   const alerts = await persistAlerts(ctx, session, rows, rebuilt.engine, rebuilt.clock.wall);
   const e = rebuilt.engine;
-  const viewerIsCmo = SESSION_CREW.find((a) => a.id === viewer)?.isCmo ?? false;
   const view = {
     crew: e.getCrew(),
     mission: e.getMission(),
     astronauts: Object.fromEntries(
       SESSION_CREW.map((a) => {
         // Privacy, as in the app: symptoms and mood only for the astronaut themselves and the crew medical officer.
-        const open = !viewer || viewer === a.id || viewerIsCmo;
+        const open = canSee(viewer, a.id);
         const indicators = Object.fromEntries(
           Object.keys(INDICATORS)
             .filter((k) => open || k !== "mood")
@@ -152,7 +171,7 @@ async function stateOf(ctx: Ctx, loaded: Loaded, viewer?: string): Promise<State
     downlink: e.getDownlinkQueue(),
     solarEvents: e.getSolarEvents(),
   };
-  return { serverTime, nowMet: rebuilt.nowMet, session, rows: { ...rows, alerts }, view };
+  return { serverTime, nowMet: rebuilt.nowMet, session, rows: rowsFor({ ...rows, alerts }, viewer), view };
 }
 
 /* ---------- endpoints ---------- */
@@ -209,7 +228,7 @@ export async function postReading(ctx: Ctx, body: unknown) {
     takenAt: actionTime(b.takenAt, ctx.now()),
   });
   loaded.rows.readings.push(row);
-  const state = await stateOf(ctx, loaded, b.astronaut);
+  const state = await stateOf(ctx, loaded, b.viewer);
   const ind = (state.view.astronauts as Record<string, { indicators: Record<string, { status: string }>; alerts: { id: string; indicator: string; status: string; acknowledged: boolean }[] }>)[b.astronaut];
   return { reading: row, status: ind.indicators[b.indicator]?.status ?? null, alert: ind.alerts.find((a) => a.indicator === b.indicator) ?? null, state };
 }
@@ -234,7 +253,7 @@ export async function postSymptom(ctx: Ctx, body: unknown) {
     resolvedAt: null,
   });
   loaded.rows.symptoms.push(row);
-  return { symptom: row, state: await stateOf(ctx, loaded, b.astronaut) };
+  return { symptom: row, state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 /** `id` is the symptom's id as the app shows it ("sym-db-12") or the bare row number. */
@@ -247,7 +266,7 @@ export async function resolveSymptom(ctx: Ctx, id: string, body: unknown) {
   if (!(await ctx.store.resolveSymptom(b.session, rowId, now))) throw notFound("No open symptom with that id in this session.");
   const sym = loaded.rows.symptoms.find((x) => x.id === rowId);
   if (sym) sym.resolvedAt = now;
-  return { state: await stateOf(ctx, loaded) };
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 async function routineEvent(ctx: Ctx, body: unknown, kind: "completed" | "postponed") {
@@ -265,7 +284,7 @@ async function routineEvent(ctx: Ctx, body: unknown, kind: "completed" | "postpo
     postponedUntil: kind === "postponed" ? new Date(Date.parse(now) + minutes * 60_000).toISOString() : null,
   });
   loaded.rows.routine.push(row);
-  return { state: await stateOf(ctx, loaded, b.astronaut) };
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 export const completeTask = (ctx: Ctx, body: unknown) => routineEvent(ctx, body, "completed");
 export const postponeTask = (ctx: Ctx, body: unknown) => routineEvent(ctx, body, "postponed");
@@ -294,7 +313,7 @@ export async function acknowledgeAlert(ctx: Ctx, alertId: string, body: unknown)
     row.acknowledgedAt = ctx.now();
     await ctx.store.updateAlert(b.session, row.id, { acknowledgedAt: row.acknowledgedAt });
   }
-  return { state: await stateOf(ctx, loaded) };
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 export async function logAlertAction(ctx: Ctx, alertId: string, body: unknown) {
@@ -303,7 +322,7 @@ export async function logAlertAction(ctx: Ctx, alertId: string, body: unknown) {
   capped(loaded, "alert_actions");
   const row = await alertRow(ctx, loaded, alertId);
   loaded.rows.actions.push(await ctx.store.insertAction(b.session, { alertEventId: row.id, kind: b.kind, note: b.note ?? null, at: ctx.now() }));
-  return { state: await stateOf(ctx, loaded) };
+  return { state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 export async function queueReport(ctx: Ctx, body: unknown) {
@@ -321,7 +340,7 @@ export async function queueReport(ctx: Ctx, body: unknown) {
     sentAt: session.earthLinkUp ? now : null,
   });
   loaded.rows.reports.push(row);
-  return { report: row, state: await stateOf(ctx, loaded, b.astronaut) };
+  return { report: row, state: await stateOf(ctx, loaded, b.viewer) };
 }
 
 export async function demo(ctx: Ctx, body: unknown) {
@@ -346,5 +365,5 @@ export async function demo(ctx: Ctx, body: unknown) {
     Object.keys(patch).length ? ctx.store.updateSession(b.session, patch) : undefined,
     b.earthLinkUp ? ctx.store.sendQueuedReports(b.session, now) : undefined,
   ]);
-  return { state: await stateOf(ctx, await load(ctx, b.session)) };
+  return { state: await stateOf(ctx, await load(ctx, b.session), b.viewer) };
 }

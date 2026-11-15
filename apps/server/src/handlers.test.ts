@@ -173,4 +173,22 @@ describe("API handlers", () => {
     expect(await post({ indicator: "mood", value: 2.5, device: "self" })).toEqual({ status: 400, error: "value: Mood must be a whole number from 1 to 5" });
     expect((await post({ indicator: "temp", value: 43, device: "thermometer" })).status).toBe(200);
   });
+
+  it("sends another astronaut's symptoms and mood only to the crew medical officer", async () => {
+    const { ctx } = setup();
+    await h.createSession(ctx, { id: S1 });
+    await h.postSymptom(ctx, { session: S1, astronaut: "hana", viewer: "hana", partId: "o-head", layer: "organs", kind: "Headache", severity: 4, note: "since breakfast", startedAt: 141 * 86400 + 14 * 3600, affectsWork: false });
+    await h.postReading(ctx, { session: S1, astronaut: "hana", viewer: "hana", indicator: "mood", value: 2, stress: 4, tags: ["Tired"], note: "rough night", device: "self" });
+    const as = async (viewer?: string) => (await h.getState(ctx, { session: S1, ...(viewer && { astronaut: viewer }) })).rows;
+    const mira = await as("mira");
+    expect(mira.symptoms.filter((x) => x.astronautId === "hana")).toHaveLength(0);
+    // Hana's mood value stays (her overall status), without the private fields.
+    expect(mira.readings.filter((x) => x.astronautId === "hana" && x.indicator === "mood").map((x) => [x.stress, x.tags, x.note])).toEqual([[null, null, null]]);
+    const tomas = await as("tomas");
+    expect(tomas.symptoms.filter((x) => x.astronautId === "hana")).toHaveLength(1);
+    expect(tomas.readings.find((x) => x.astronautId === "hana" && x.indicator === "mood")?.note).toBe("rough night");
+    expect((await as("hana")).symptoms).toHaveLength(1);
+    // The crew picker (no one chosen yet) gets no private rows.
+    expect((await as()).symptoms).toHaveLength(0);
+  });
 });
